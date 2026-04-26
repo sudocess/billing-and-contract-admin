@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { MOCK_CONTRACTS, KNOWN_CLIENTS, nextContractId } from '@/lib/contracts'
 import { prisma } from '@/lib/prisma'
+import ContractRowActions from './ContractRowActions'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,7 +29,7 @@ type DisplayContract = {
   type: string
   phase: 'phase1' | 'phase2' | 'phase3' | 'custom'
   value: number
-  status: 'signed' | 'pending'
+  status: 'signed' | 'pending' | 'cancelled'
   viewable?: boolean
 }
 
@@ -41,7 +42,7 @@ export default async function ContractsPage() {
     type: typeLabel(c.contractType),
     phase: (['phase1', 'phase2', 'phase3', 'custom'].includes(c.phase) ? c.phase : 'custom') as DisplayContract['phase'],
     value: c.totalValue,
-    status: c.status === 'SIGNED' ? 'signed' : 'pending',
+    status: c.status === 'SIGNED' ? 'signed' : c.status === 'CANCELLED' ? 'cancelled' : 'pending',
     viewable: true,
   }))
   const contracts: DisplayContract[] = [...dbRows, ...MOCK_CONTRACTS]
@@ -131,23 +132,18 @@ export default async function ContractsPage() {
                     <td>
                       {c.status === 'signed' ? (
                         <span className="badge badge-success">Signed</span>
+                      ) : c.status === 'cancelled' ? (
+                        <span className="badge bg-brown-dark/10 text-brown-subtle">Cancelled</span>
                       ) : (
                         <span className="badge badge-warning">Awaiting sig.</span>
                       )}
                     </td>
                     <td>
-                      <div className="flex gap-2">
-                        {c.viewable ? (
-                          <Link href={`/contracts/${encodeURIComponent(c.id)}`} className="btn btn-ghost btn-sm">View</Link>
-                        ) : (
-                          <button type="button" className="btn btn-ghost btn-sm" disabled title="Demo contract — no saved snapshot">View</button>
-                        )}
-                        {c.status === 'signed' ? (
-                          <button type="button" className="btn btn-ghost btn-sm">Invoice</button>
-                        ) : (
-                          <button type="button" className="btn btn-ghost btn-sm">Resend</button>
-                        )}
-                      </div>
+                      <ContractRowActions
+                        contractCode={c.id}
+                        status={c.status}
+                        viewable={!!c.viewable}
+                      />
                     </td>
                   </tr>
                 ))}

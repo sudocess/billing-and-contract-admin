@@ -61,8 +61,36 @@ const PROVIDER = {
   termsUrl: 'https://engaginguxdesign.com/service-terms-and-conditions',
 }
 
-export default function ContractWizard() {
+export type WizardPrefill = {
+  contractCode: string
+  contractType: ContractType
+  plan: PlanKey | null
+  phase: PhaseKey
+  language: LanguageKey | string | null
+  projectName: string | null
+  deliverables: string | null
+  phaseStart: string | null
+  phaseEnd: string | null
+  client: {
+    name: string
+    company?: string | null
+    email?: string | null
+    phone?: string | null
+    kvk?: string | null
+    vat?: string | null
+    address?: string | null
+    postalCode?: string | null
+    city?: string | null
+    country?: string | null
+    dedicatedEmail?: string | null
+  }
+  pricing: { total: number; initFee: number; tier2Rate: number }
+  data: PreviewData | null
+}
+
+export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: WizardPrefill; mode?: 'new' | 'edit' } = {}) {
   const [step, setStep] = useState(1)
+  const editingCode = mode === 'edit' && prefill ? prefill.contractCode : null
 
   // ── Step 1: client details ──
   const [clientName, setClientName] = useState('')
@@ -131,6 +159,59 @@ export default function ContractWizard() {
     return () => document.removeEventListener('mousedown', onDocClick)
   }, [])
 
+  // ─────────── Prefill on mount (edit mode) ───────────
+  const hydratedRef = useRef(false)
+  useEffect(() => {
+    if (!prefill || hydratedRef.current) return
+    hydratedRef.current = true
+    // Mark client name as "already auto-filled" so the matched-client effect
+    // doesn't overwrite the saved values.
+    lastAutofilledRef.current = prefill.client.name || ''
+
+    setClientName(prefill.client.name || '')
+    setCompany(prefill.client.company || '')
+    setEmail(prefill.client.email || '')
+    setPhone(prefill.client.phone || '')
+    setKvk(prefill.client.kvk || '')
+    setVat(prefill.client.vat || '')
+    setAddress(prefill.client.address || '')
+    setPostalCode(prefill.client.postalCode || '')
+    setCity(prefill.client.city || '')
+    setCountry(prefill.client.country || 'Netherlands')
+
+    setContractType((prefill.contractType as ContractType) || 'standard')
+    if (prefill.plan && prefill.plan !== 'custom') setPlan(prefill.plan as PlanKey)
+    setPhase((prefill.phase as PhaseKey) || 'phase1')
+    if (prefill.language === 'en' || prefill.language === 'nl' || prefill.language === 'bilingual') {
+      setLanguage(prefill.language as LanguageKey)
+    }
+
+    setProjectName(prefill.projectName || '')
+    setDeliverables(prefill.deliverables || '')
+    setPhaseStart(prefill.phaseStart || '')
+    setPhaseEnd(prefill.phaseEnd || '')
+
+    setTotalVal(prefill.pricing.total ? String(prefill.pricing.total) : '')
+    setInitFee(prefill.pricing.initFee ? String(prefill.pricing.initFee) : '')
+    setTier2Rate(prefill.pricing.tier2Rate ? String(prefill.pricing.tier2Rate) : '')
+
+    if (prefill.data) {
+      const d = prefill.data
+      if (d.hosting) {
+        setHosting(d.hosting.mode || 'hosting')
+        setDomainPrice(d.hosting.domainPrice ? String(d.hosting.domainPrice) : '')
+        setHostingPrice(d.hosting.hostingPrice ? String(d.hosting.hostingPrice) : '')
+      }
+      if (d.addons) {
+        setSeoAddon({ on: !!d.addons.seo?.on, price: d.addons.seo?.price ? String(d.addons.seo.price) : '' })
+        setLogoAddon({ on: !!d.addons.logo?.on, price: d.addons.logo?.price ? String(d.addons.logo.price) : '', note: d.addons.logo?.note || '' })
+        setSupportAddon({ on: !!d.addons.support?.on, price: d.addons.support?.price ? String(d.addons.support.price) : '', months: String(d.addons.support?.months ?? 12) })
+        setSupabaseAddon({ on: !!d.addons.supabase?.on, price: d.addons.supabase?.price ? String(d.addons.supabase.price) : '' })
+        setVercelAddon({ on: !!d.addons.vercel?.on, price: d.addons.vercel?.price ? String(d.addons.vercel.price) : '' })
+      }
+    }
+  }, [prefill])
+
   const matchedClient = useMemo(() => findKnownClient(clientName), [clientName])
   const nameSuggestions = useMemo(() => {
     const q = clientName.trim().toLowerCase()
@@ -143,10 +224,11 @@ export default function ContractWizard() {
   const effectivePlan: PlanKey = contractType === 'custom' ? 'custom' : plan
 
   const contractId = useMemo(() => {
+    if (editingCode) return editingCode
     const code = matchedClient?.clientCode ?? '0000000'
     const phaseIndex = matchedClient ? matchedClient.contracts + 1 : 1
     return nextContractId(code, phaseIndex)
-  }, [matchedClient])
+  }, [matchedClient, editingCode])
 
   // ─────────── Step 1 autofill on match ───────────
   // When a matched client is detected, fill any blank fields with the stored
@@ -828,7 +910,7 @@ export default function ContractWizard() {
                 onClick={saveContract}
                 disabled={saving}
               >
-                {saving ? 'Saving…' : 'Save contract'}
+                {saving ? 'Saving…' : editingCode ? 'Save & republish' : 'Save contract'}
               </button>
               <button type="button" className="btn btn-primary" onClick={() => generate()}>Generate contract</button>
             </div>
