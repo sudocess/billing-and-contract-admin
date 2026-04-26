@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Service Agreement — Engaging UX Design</title>
+<link href="https://fonts.googleapis.com/css2?family=Gabarito:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: #f0e4d8;
+    font-family: "Gabarito", sans-serif;
+    color: #1c1008;
+    font-size: 12.5px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* A4 = 210 x 297mm. At 96dpi screen = 794 x 1123px */
+  .page {
+    width: 794px;
+    min-height: 1123px;
+    margin: 32px auto;
+    background: #fff;
+    border: 1px solid #d4bfb0;
+    border-radius: 3px;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    page-break-after: always;
+  }
+
+  .page-body {
+    flex: 1;
+    padding: 36px 44px 24px;
+  }
+
+  /* ── Page footer (repeats on every page) ── */
+  .page-footer {
+    border-top: 1px solid #ecddd4;
+    padding: 10px 44px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: auto;
+  }
+  .pf-ref { font-size: 10px; color: #9a7a65; }
+  .pf-ref a { color: #8b3a1e; text-decoration: none; }
+  .pf-num { font-size: 10px; color: #b8a090; font-family: "Courier New", monospace; }
+
+  /* ── Contract header (page 1 only) ── */
+  .contract-header {
+    background: #1c1008;
+    padding: 26px 44px 22px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+    border-radius: 3px 3px 0 0;
+  }
+  .brand-name { font-size: 15px; font-weight: 700; color: #f7ede2; letter-spacing: 0.01em; line-height: 1.3; }
+  .brand-tagline { font-size: 10px; color: #c4a898; text-transform: uppercase; letter-spacing: 0.12em; margin-top: 3px; }
+  .header-meta { text-align: right; }
+  .contract-type-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em; color: #c4714f; margin-bottom: 4px; }
+  .contract-id { font-size: 11px; font-family: "Courier New", monospace; color: #d4bfb0; line-height: 1.6; }
+
+  /* ── Title bar (page 1 only) ── */
+  .contract-title-bar {
+    background: #f7ede2;
+    padding: 16px 44px;
+    border-bottom: 1px solid #d4bfb0;
+  }
+  .contract-title { font-size: 14px; font-weight: 700; color: #1c1008; line-height: 1.4; }
+  .contract-subtitle { font-size: 11px; color: #8a6a55; margin-top: 3px; }
+
+  /* ── Continued header (pages 2+) ── */
+  .page-header-cont {
+    background: #1c1008;
+    padding: 12px 44px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-radius: 3px 3px 0 0;
+  }
+  .phc-brand { font-size: 11px; font-weight: 700; color: #c4a898; letter-spacing: 0.04em; }
+  .phc-id { font-size: 10px; color: #7a5a48; font-family: "Courier New", monospace; }
+
+  /* ── Sections ── */
+  .section { margin-bottom: 26px; }
+  .section-label {
+    font-size: 9px; font-weight: 700; letter-spacing: 0.18em;
+    text-transform: uppercase; color: #8b3a1e;
+    padding-bottom: 6px; border-bottom: 1px solid #ecddd4; margin-bottom: 12px;
+  }
+
+  /* ── Parties ── */
+  .parties-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .party-block:first-child { padding-right: 24px; border-right: 1px solid #ecddd4; }
+  .party-role { font-size: 9px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #9a7a65; margin-bottom: 6px; }
+  .party-name { font-size: 13px; font-weight: 700; color: #1c1008; margin-bottom: 4px; line-height: 1.3; }
+  .party-detail { font-size: 11.5px; color: #5c3a28; line-height: 1.7; }
+  .party-detail .muted { color: #9a7a65; font-size: 10.5px; }
+
+  /* ── Details row ── */
+  .details-row { display: grid; grid-template-columns: repeat(3,1fr); border: 1px solid #ecddd4; border-radius: 5px; overflow: hidden; }
+  .detail-cell { padding: 11px 14px; border-right: 1px solid #ecddd4; }
+  .detail-cell:last-child { border-right: none; }
+  .detail-cell-label { font-size: 9px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #9a7a65; margin-bottom: 3px; }
+  .detail-cell-value { font-size: 12.5px; font-weight: 600; color: #1c1008; }
+  .detail-cell-value.accent { color: #8b3a1e; }
+
+  /* ── Scope ── */
+  .scope-text { font-size: 12.5px; color: #3b2110; line-height: 1.75; }
+
+  /* ── Payment table ── */
+  .payment-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 4px; }
+  .payment-table thead tr { background: #f7ede2; }
+  .payment-table th { font-size: 9px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #8a6a55; padding: 8px 12px; text-align: left; border-bottom: 1px solid #d4bfb0; }
+  .payment-table td { padding: 9px 12px; color: #3b2110; border-bottom: 1px solid #f0e4d8; vertical-align: top; }
+  .payment-table tr:last-child td { border-bottom: none; font-weight: 700; background: #fdf5ef; color: #1c1008; }
+  .payment-table .amount { font-weight: 600; white-space: nowrap; text-align: right; }
+  .payment-table .amount.total { color: #8b3a1e; }
+
+  /* ── Notes ── */
+  .note {
+    font-size: 11px; color: #5c3a28; margin-top: 9px; line-height: 1.6;
+    padding: 9px 13px; background: #f7ede2;
+    border-left: 2px solid #d4bfb0; border-radius: 0 4px 4px 0;
+  }
+  .note.accent { border-left-color: #8b3a1e; }
+  .note strong { color: #1c1008; }
+
+  /* ── Revision tiers ── */
+  .tier-row { display: flex; align-items: flex-start; gap: 11px; padding: 9px 0; border-bottom: 1px solid #f0e4d8; }
+  .tier-row:last-of-type { border-bottom: none; }
+  .tier-index { width: 20px; height: 20px; border-radius: 50%; background: #f0e4d8; display: flex; align-items: center; justify-content: center; font-size: 9.5px; font-weight: 700; color: #8a6a55; flex-shrink: 0; margin-top: 1px; }
+  .tier-index.active { background: #8b3a1e; color: #fff; }
+  .tier-title { font-size: 11.5px; font-weight: 700; color: #1c1008; }
+  .tier-desc { font-size: 11px; color: #8a6a55; margin-top: 2px; line-height: 1.5; }
+  .tier-badge { margin-left: auto; flex-shrink: 0; font-size: 9.5px; font-weight: 600; padding: 2px 8px; border-radius: 20px; margin-top: 1px; white-space: nowrap; }
+  .badge-inc { background: #e6f4ea; color: #2d6e2d; }
+  .badge-hr  { background: #fff8e1; color: #8a5f00; }
+  .badge-add { background: #fce8e0; color: #8b3a1e; }
+
+  /* ── Add-ons table ── */
+  .addons-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+  .addons-table td { padding: 8px 12px; border-bottom: 1px solid #f0e4d8; color: #3b2110; vertical-align: top; }
+  .addons-table tr:last-child td { border-bottom: none; }
+  .addon-name { font-weight: 600; }
+  .addon-note { font-size: 10.5px; color: #9a7a65; font-weight: 400; margin-top: 2px; line-height: 1.5; }
+  .addon-price { text-align: right; font-weight: 600; white-space: nowrap; }
+  .addon-price.pass { color: #9a7a65; font-weight: 400; font-style: italic; }
+
+  /* ── Clause ── */
+  .clause { font-size: 12px; color: #3b2110; line-height: 1.75; margin-bottom: 9px; }
+  .clause:last-child { margin-bottom: 0; }
+  .clause strong { color: #1c1008; }
+
+  /* ── Signatures ── */
+  .sig-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-top: 8px; }
+  .sig-party { font-size: 10px; font-weight: 700; color: #8a6a55; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 26px; }
+  .sig-line { border-bottom: 1px solid #1c1008; margin-bottom: 5px; height: 30px; }
+  .sig-field-label { font-size: 10px; color: #9a7a65; margin-bottom: 16px; }
+
+  @media print {
+    html, body { background: #fff; }
+    .page { margin: 0; border: none; border-radius: 0; page-break-after: always; }
+  }
+  @page { size: A4; margin: 0; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════ PAGE 1 ═══════════════════════════════════ -->
+<div class="page">
+  <header class="contract-header">
+    <div>
+      <div class="brand-name">Engaging UX Design</div>
+      <div class="brand-tagline">UX Design &amp; Web Development · Eindhoven, NL</div>
+    </div>
+    <div class="header-meta">
+      <div class="contract-type-label">Service Agreement</div>
+      <div class="contract-id">ID: 2026-0000000-0001<br>Issued: 26 April 2026</div>
+    </div>
+  </header>
+
+  <div class="contract-title-bar">
+    <div class="contract-title">Lemur Photography (Premium+) · 2 Apps</div>
+    <div class="contract-subtitle">Phase 1 — Strategy &amp; Structure · Custom Agreement</div>
+  </div>
+
+  <div class="page-body">
+
+    <!-- 1. PARTIES -->
+    <div class="section">
+      <div class="section-label">1. Parties</div>
+      <div class="parties-grid">
+        <div class="party-block">
+          <div class="party-role">Service Provider</div>
+          <div class="party-name">Engaging UX Design</div>
+          <div class="party-detail">
+            Eenmanszaak (sole proprietorship)<br>
+            Eindhoven, Netherlands<br>
+            info@engaginguxdesign.com<br>
+            +31 6 17 60 24 41<br>
+            <span class="muted">KvK registered · VAT-registered (NL)</span>
+          </div>
+        </div>
+        <div class="party-block">
+          <div class="party-role">Client</div>
+          <div class="party-name">J Leemar</div>
+          <div class="party-detail">
+            LHR Photography<br>
+            Zandschuit 51, 5658 AB Amsterdam, Netherlands<br>
+            leemaar@gmail.com<br>
+            +31 6 12 34 56 78<br>
+            <span class="muted">KvK 88321040</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. PROJECT AT A GLANCE -->
+    <div class="section">
+      <div class="section-label">2. Project at a Glance</div>
+      <div class="details-row">
+        <div class="detail-cell">
+          <div class="detail-cell-label">Phase</div>
+          <div class="detail-cell-value">Phase 1 — Strategy &amp; Structure</div>
+        </div>
+        <div class="detail-cell">
+          <div class="detail-cell-label">Estimated completion</div>
+          <div class="detail-cell-value">30 June 2026</div>
+        </div>
+        <div class="detail-cell">
+          <div class="detail-cell-label">Total project value</div>
+          <div class="detail-cell-value accent">€120.00 <span style="font-size:9.5px;font-weight:400;color:#9a7a65;">excl. VAT</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. SCOPE OF WORK -->
+    <div class="section">
+      <div class="section-label">3. Scope of Work</div>
+      <p class="scope-text">Design and development of a photography portfolio website including a Booking application and an Invoicing application. Built in clean HTML/CSS/JS, hosted on a managed platform, and version-controlled via GitHub. Deliverables include UX wireframes, responsive layout, Figma prototype, and two integrated dynamic applications.</p>
+      <div class="note" style="margin-top:10px;">
+        <strong>Phase 1 — Strategy &amp; Structure</strong> covers: project kick-off, UX research and sitemap definition, content structure and wireframes, design direction proposal, and written Phase 1 sign-off by the client before Phase 2 begins.
+      </div>
+    </div>
+
+    <!-- 4. PAYMENT SCHEDULE -->
+    <div class="section">
+      <div class="section-label">4. Payment Schedule</div>
+      <table class="payment-table">
+        <thead>
+          <tr>
+            <th>Milestone</th>
+            <th>Condition</th>
+            <th style="text-align:right;">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Payment 1 (30%)</td>
+            <td>Due before work begins</td>
+            <td class="amount">€36.00</td>
+          </tr>
+          <tr>
+            <td>Payment 2 (40%)</td>
+            <td>Due at agreed midpoint</td>
+            <td class="amount">€48.00</td>
+          </tr>
+          <tr>
+            <td>Payment 3 (30%)</td>
+            <td>Due before final delivery</td>
+            <td class="amount">€36.00</td>
+          </tr>
+          <tr>
+            <td colspan="2">Total (excl. VAT)</td>
+            <td class="amount total">€120.00</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="note">
+        Invoices are payable within 30 days of invoice date. Late payments are subject to statutory interest of 1% per month under Dutch law (Handelsrentewet) and a €25 administrative fee per reminder issued after the first. Engaging UX Design reserves the right to suspend work where payment is overdue by more than 14 days. No project initiation fee applies to this Custom Agreement.
+      </div>
+    </div>
+
+  </div>
+  <div class="page-footer">
+    <div class="pf-ref">Contract ID: 2026-0000000-0001 · Engaging UX Design</div>
+    <div class="pf-num">Page 1 of 3</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════ PAGE 2 ═══════════════════════════════════ -->
+<div class="page">
+  <div class="page-header-cont">
+    <div class="phc-brand">Engaging UX Design — Service Agreement</div>
+    <div class="phc-id">2026-0000000-0001</div>
+  </div>
+
+  <div class="page-body">
+
+    <!-- 5. REVISION SCOPE -->
+    <div class="section">
+      <div class="section-label">5. Revision Scope</div>
+      <div class="tier-row">
+        <div class="tier-index active">1</div>
+        <div class="tier-content">
+          <div class="tier-title">Cosmetic changes</div>
+          <div class="tier-desc">Colour, font, spacing, copy adjustments. Unlimited rounds within each phase.</div>
+        </div>
+        <span class="tier-badge badge-inc">Included</span>
+      </div>
+      <div class="note" style="margin-top:10px;">This is a Custom Agreement. Tier 2 (structural changes) and Tier 3 (new features) are not included. Any structural or feature additions require a separate written agreement.</div>
+    </div>
+
+    <!-- 6. HOSTING & ADD-ONS -->
+    <div class="section">
+      <div class="section-label">6. Hosting &amp; Add-ons</div>
+      <table class="addons-table">
+        <tbody>
+          <tr>
+            <td class="addon-name">Website hosting<div class="addon-note">Managed hosting — client provides own domain</div></td>
+            <td class="addon-price">€5.00/yr</td>
+          </tr>
+          <tr>
+            <td class="addon-name">Priority support<div class="addon-note">Fixed monthly — cancel with 1 calendar month written notice</div></td>
+            <td class="addon-price">€40.00/mo × 3 months</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="note">Priority support is a fixed monthly commitment. The client may cancel with written notice at least <strong>one full calendar month in advance</strong>. A pro-rated refund applies for any unused pre-paid portion. Data storage and app hosting costs are billed at cost and invoiced separately.</div>
+    </div>
+
+    <!-- 7. TECHNICAL INFRASTRUCTURE -->
+    <div class="section">
+      <div class="section-label">7. Technical Infrastructure &amp; Third-Party Services</div>
+      <p class="clause">To develop and deliver this project, Engaging UX Design uses professional third-party platforms on the client's behalf. A dedicated Google account is created for the client to serve as the root identity connecting all services. The client receives full credentials and ownership of this account.</p>
+      <div class="note accent" style="margin-bottom:12px;">
+        <strong>Dedicated Google account:</strong> lhrstudie@gmail.com<br>
+        <span style="font-size:10.5px;color:#8a6a55;">For this Custom Agreement, credentials are shared before Phase 1 work begins. For Standard Agreements, credentials are shared immediately upon receipt of the project initiation payment.</span>
+      </div>
+      <table class="addons-table">
+        <tbody>
+          <tr>
+            <td class="addon-name">Website hosting<div class="addon-note">Client website hosted via a managed hosting platform. Costs billed at cost.</div></td>
+            <td class="addon-price pass">At cost</td>
+          </tr>
+          <tr>
+            <td class="addon-name">App hosting &amp; serverless functions — Vercel<div class="addon-note">Dynamic applications deployed via Vercel, Inc. The client acknowledges and accepts Vercel's Terms of Service and Privacy Policy.</div></td>
+            <td class="addon-price pass">At cost</td>
+          </tr>
+          <tr>
+            <td class="addon-name">Data storage &amp; database — Supabase<div class="addon-note">Application data stored via Supabase, Inc. The client acknowledges and accepts Supabase's Terms of Service, Privacy Policy, and Data Processing Agreement.</div></td>
+            <td class="addon-price pass">At cost</td>
+          </tr>
+          <tr>
+            <td class="addon-name">Transactional email — Resend<div class="addon-note">Automated notifications sent via Resend, Inc. The client acknowledges and accepts Resend's Terms of Service and Privacy Policy.</div></td>
+            <td class="addon-price pass">At cost</td>
+          </tr>
+          <tr>
+            <td class="addon-name">Source code &amp; version control — GitHub<div class="addon-note">All code maintained in a private GitHub repository. Full access transferred to client upon final payment.</div></td>
+            <td class="addon-price">Included</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="note">
+        <strong>Third-party liability disclaimer (Art. 6:76 BW):</strong> Engaging UX Design accepts no liability for data breaches, outages, or data loss originating from Vercel, Supabase, Resend, GitHub, or any other third-party platform. Each platform operates under its own terms, security standards, and privacy policies. The client is responsible for reading and accepting those terms. Claims arising from third-party platform failures must be directed to the relevant provider. This limitation applies to the fullest extent permitted by Dutch law.
+      </div>
+    </div>
+
+  </div>
+  <div class="page-footer">
+    <div class="pf-ref">Contract ID: 2026-0000000-0001 · Engaging UX Design</div>
+    <div class="pf-num">Page 2 of 3</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════ PAGE 3 ═══════════════════════════════════ -->
+<div class="page">
+  <div class="page-header-cont">
+    <div class="phc-brand">Engaging UX Design — Service Agreement</div>
+    <div class="phc-id">2026-0000000-0001</div>
+  </div>
+
+  <div class="page-body">
+
+    <!-- 8. CLIENT OBLIGATIONS -->
+    <div class="section">
+      <div class="section-label">8. Client Obligations</div>
+      <p class="clause">The client agrees to designate a single point of contact for all project decisions, to provide written feedback within <strong>5 business days</strong> of each deliverable, and to ensure that all supplied materials are free of third-party intellectual property infringement.</p>
+      <p class="clause"><strong>Content &amp; asset delivery:</strong> The client must provide all required content, copy, images, and brand assets within <strong>14 business days</strong> of contract signing. Engaging UX Design will send a written reminder 3 business days before this deadline, at which point the client may also agree to proceed with licensed placeholder images sourced from Unsplash.</p>
+      <p class="clause">If assets are not delivered and no response is received by the deadline:</p>
+      <table class="addons-table" style="margin-bottom:9px;">
+        <tbody>
+          <tr>
+            <td class="addon-name">Client agrees to Unsplash images<div class="addon-note">Engaging UX Design sources appropriate licensed images and proceeds. A separate invoice is issued for sourcing and integration time.</div></td>
+          </tr>
+          <tr>
+            <td class="addon-name">Client does not respond<div class="addon-note">Project is placed on hold. No further work proceeds until assets are received. Timeline is extended by the days of delay, with no penalty to Engaging UX Design. Projects on hold for more than 60 days may be subject to a restart fee (see section 12).</div></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="note">Delays caused by late asset delivery are the full responsibility of the client and do not constitute a breach by Engaging UX Design.</div>
+    </div>
+
+    <!-- 9. INTELLECTUAL PROPERTY -->
+    <div class="section">
+      <div class="section-label">9. Intellectual Property</div>
+      <p class="clause">Upon receipt of full payment, the client receives full ownership of all custom deliverables. Until full payment is received, all deliverables remain the property of Engaging UX Design. Engaging UX Design retains the right to display completed work in its portfolio and marketing materials.</p>
+    </div>
+
+    <!-- 10. CONFIDENTIALITY -->
+    <div class="section">
+      <div class="section-label">10. Confidentiality</div>
+      <p class="clause">Both parties agree to treat as confidential any non-public business information shared during the project and not to disclose it to third parties without prior written consent, except where required by law.</p>
+    </div>
+
+    <!-- 11. LIMITATION OF LIABILITY -->
+    <div class="section">
+      <div class="section-label">11. Limitation of Liability</div>
+      <p class="clause">To the maximum extent permitted by Dutch law, Engaging UX Design's total liability shall not exceed the total fees paid for this project. No liability is accepted for indirect, consequential, or incidental loss, including loss of revenue, data, or profits.</p>
+    </div>
+
+    <!-- 12. CANCELLATION & TERMINATION -->
+    <div class="section">
+      <div class="section-label">12. Cancellation &amp; Termination</div>
+      <p class="clause">Either party may terminate with written notice. Upon termination, completed work is invoiced at the applicable milestone rate; outstanding invoices remain due; and deliverables transfer only after full payment. Projects inactive for more than <strong>60 days</strong> may be archived and a restart fee applied.</p>
+    </div>
+
+    <!-- 13. GOVERNING LAW -->
+    <div class="section">
+      <div class="section-label">13. Governing Law</div>
+      <p class="clause">This agreement is governed by Dutch law. Disputes will first be addressed by direct negotiation. If unresolved within 30 days, disputes shall be submitted to the competent court in the district of <strong>Oost-Brabant</strong>, the Netherlands. This contract is supplemented by the Engaging UX Design Service Terms &amp; Project Conditions: <a href="https://engaginguxdesign.com/service-terms-and-conditions" style="color:#8b3a1e;">engaginguxdesign.com/service-terms-and-conditions</a></p>
+    </div>
+
+    <!-- SIGNATURES -->
+    <div class="section" style="margin-top:32px;">
+      <div class="section-label">Signatures</div>
+      <div class="sig-grid">
+        <div class="sig-block">
+          <div class="sig-party">Engaging UX Design</div>
+          <div class="sig-line"></div>
+          <div class="sig-field-label">Name</div>
+          <div class="sig-line"></div>
+          <div class="sig-field-label">Date</div>
+        </div>
+        <div class="sig-block">
+          <div class="sig-party">J Leemar</div>
+          <div class="sig-line"></div>
+          <div class="sig-field-label">Name</div>
+          <div class="sig-line"></div>
+          <div class="sig-field-label">Date</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <div class="page-footer">
+    <div class="pf-ref"><a href="https://engaginguxdesign.com/service-terms-and-conditions">engaginguxdesign.com/service-terms-and-conditions</a> · Contract ID: 2026-0000000-0001</div>
+    <div class="pf-num">Page 3 of 3</div>
+  </div>
+</div>
+
+</body>
+</html>

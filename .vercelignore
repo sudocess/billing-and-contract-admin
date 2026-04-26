@@ -1,0 +1,23 @@
+# Files Vercel doesn't need to upload (build artifacts + scratch)
+.next/
+node_modules/
+.git/
+.turbo/
+build/
+dist/
+out/
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local-only docs / drafts
+README.md
+contract-instruction/
+*.md
+!public/**/*.md
+
+# Logs
+*.log

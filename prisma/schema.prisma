@@ -1,0 +1,159 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+model Invoice {
+  id             String        @id @default(uuid())
+  invoiceNumber  String        @unique
+  status         InvoiceStatus @default(DRAFT)
+
+  // Client
+  clientName     String
+  clientEmail    String
+  clientContact  String?
+  clientPhone    String?
+  clientAddress  String?
+  clientCity     String?
+  clientCountry  String        @default("Netherlands")
+  clientVat      String?
+  clientKvk      String?
+
+  // Invoice details
+  invoiceDate    DateTime
+  dueDate        DateTime
+  reference      String?
+  paymentTerms   String        @default("30 days")
+  currency       String        @default("€")
+  language       String        @default("en")
+
+  // Totals
+  subtotal       Float         @default(0)
+  vatTotal       Float         @default(0)
+  grandTotal     Float         @default(0)
+
+  // Payment
+  iban           String?
+  bic            String?
+  bankName       String?
+  accountHolder  String?       @default("Engaging UX Design")
+  paymentRef     String?
+
+  // EU Compliance
+  ownVat         String?
+  ownKvk         String?
+  lateFee        String?       @default("1% per month")
+  vatTreatment   String        @default("standard")
+
+  // Notes
+  notes          String?
+  internalNotes  String?
+
+  // Timestamps
+  sentAt         DateTime?
+  paidAt         DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  // Relations
+  items          InvoiceItem[]
+
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id          String  @id @default(uuid())
+  invoiceId   String
+  description String
+  quantity    Float   @default(1)
+  unitPrice   Float   @default(0)
+  vatRate     Float   @default(21)
+  amount      Float   @default(0)
+
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("invoice_items")
+}
+
+model AdminUser {
+  id              String   @id @default(uuid())
+  email           String   @unique
+  passwordHash    String
+  totpSecret      String
+  recoveryCodes   String[] @default([])
+  failedAttempts  Int      @default(0)
+  lockedUntil     DateTime?
+  lastLoginAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("admin_users")
+}
+
+enum ContractStatus {
+  DRAFT
+  PENDING
+  SIGNED
+  CANCELLED
+}
+
+model Contract {
+  id               String         @id @default(uuid())
+  contractCode     String         @unique // human-readable, e.g. CONT-LHR-PH3-2026
+  status           ContractStatus @default(DRAFT)
+
+  contractType     String         // standard | phase | extension | custom
+  plan             String?        // basic | business | enterprise | custom
+  phase            String         // phase1 | phase2 | phase3 | custom
+  phaseLabel       String
+  language         String         @default("en")
+
+  projectName      String?
+  deliverables     String?
+  phaseStart       String?
+  phaseEnd         String?
+
+  // Client snapshot
+  clientName       String
+  clientCompany    String?
+  clientEmail      String?
+  clientPhone      String?
+  clientKvk        String?
+  clientVat        String?
+  clientAddress    String?
+  clientPostalCode String?
+  clientCity       String?
+  clientCountry    String?
+  dedicatedEmail   String?
+
+  // Pricing
+  totalValue       Float          @default(0)
+  initFee          Float          @default(0)
+  p1               Float          @default(0)
+  p2               Float          @default(0)
+  p3               Float          @default(0)
+  tier2Rate        Float          @default(0)
+
+  // Full preview snapshot (hosting, addons, etc.)
+  data             Json
+
+  signedAt         DateTime?
+  sentAt           DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@map("contracts")
+}

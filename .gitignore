@@ -1,0 +1,41 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.*
+.yarn/
+
+# next.js
+.next/
+out/
+.turbo/
+
+# production
+build/
+dist/
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# env
+.env
+.env.local
+.env.*.local
+
+# os / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# scratch / docs not for deploy
+/contract-instruction/
+*.zip
+/tmp/
