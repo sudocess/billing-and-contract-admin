@@ -20,6 +20,21 @@ export interface ContractPdfData {
   p3: number
 }
 
+// Brand colours
+const C = {
+  dark:    '#1c1008',
+  rust:    '#8b3a1e',
+  cream:   '#f7ede2',
+  border:  '#ecddd4',
+  text:    '#3b2110',
+  muted:   '#8a6a55',
+  subtle:  '#9a7a65',
+  headerAccent: '#c4a898',
+  headerMuted:  '#7a5a48',
+  idColor: '#d4bfb0',
+  rowAlt:  '#fdf5ef',
+}
+
 const fmtEur = (n: number) => `€${n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`
 
 function fmtDate(s?: string | null): string {
@@ -31,168 +46,217 @@ function fmtDate(s?: string | null): string {
   }
 }
 
+// Hex colour → pdfkit-compatible [r, g, b] or just pass the hex string
+// pdfkit accepts '#rrggbb' strings directly
+
 export function buildContractSignaturePdf(data: ContractPdfData): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: 'A4', margin: 60 })
+    const PAGE_W = 595.28
+    const ML = 45            // left margin
+    const MR = 45            // right margin
+    const CW = PAGE_W - ML - MR  // content width ≈ 505
+
+    const doc = new PDFDocument({ size: 'A4', margin: 0, bufferPages: true })
     const chunks: Buffer[] = []
     doc.on('data', (chunk: Buffer) => chunks.push(chunk))
     doc.on('end', () => resolve(Buffer.concat(chunks)))
     doc.on('error', reject)
 
-    const W = 595 - 120
+    const today = fmtDate(new Date().toISOString())
 
-    // ── Header ──────────────────────────────────────────────────────────
-    doc
-      .fontSize(8)
-      .fillColor('#999999')
-      .font('Helvetica-Bold')
-      .text('ENGAGING UX DESIGN — SERVICE AGREEMENT', { characterSpacing: 1 })
+    // ────────────────────────────────────────────────────────────────────
+    // HEADER — dark branded bar
+    // ────────────────────────────────────────────────────────────────────
+    const HEADER_H = 72
+    doc.rect(0, 0, PAGE_W, HEADER_H).fill(C.dark)
 
-    doc.moveDown(0.3)
-    doc
-      .fontSize(18)
-      .fillColor('#1a1a1a')
-      .font('Helvetica-Bold')
-      .text(data.projectName || 'Service Agreement')
+    // Brand name — left side
+    doc.fontSize(7.5).fillColor(C.headerAccent).font('Helvetica-Bold')
+       .text('ENGAGING UX DESIGN', ML, 20, { characterSpacing: 1.5, width: CW * 0.6 })
+    doc.fontSize(7).fillColor(C.headerMuted).font('Helvetica')
+       .text('SERVICE AGREEMENT', ML, 33, { characterSpacing: 0.8, width: CW * 0.6 })
 
-    doc.moveDown(0.2)
-    doc
-      .fontSize(9)
-      .fillColor('#888888')
-      .font('Helvetica')
-      .text(`Reference: ${data.contractCode}   ·   Date: ${fmtDate(new Date().toISOString())}`)
+    // Contract reference — right side
+    doc.fontSize(8.5).fillColor(C.idColor).font('Helvetica')
+       .text(data.contractCode, ML, 20, { align: 'right', width: CW, characterSpacing: 0.3 })
+    doc.fontSize(7.5).fillColor(C.headerMuted).font('Helvetica')
+       .text(today, ML, 33, { align: 'right', width: CW })
 
-    doc.moveDown(0.8)
-    doc.moveTo(60, doc.y).lineTo(535, doc.y).strokeColor('#dddddd').lineWidth(1).stroke()
-    doc.moveDown(0.8)
+    // ────────────────────────────────────────────────────────────────────
+    // TITLE BAR — cream background
+    // ────────────────────────────────────────────────────────────────────
+    const TITLE_H = 56
+    doc.rect(0, HEADER_H, PAGE_W, TITLE_H).fill(C.cream)
 
-    // ── Parties ──────────────────────────────────────────────────────────
-    doc
-      .fontSize(7)
-      .fillColor('#999999')
-      .font('Helvetica-Bold')
-      .text('PARTIES', { characterSpacing: 1.5 })
-    doc.moveDown(0.4)
+    const projectName = data.projectName || 'Service Agreement'
+    doc.fontSize(17).fillColor(C.dark).font('Helvetica-Bold')
+       .text(projectName, ML, HEADER_H + 11, { width: CW })
+    doc.fontSize(8.5).fillColor(C.muted).font('Helvetica')
+       .text(`${data.phaseLabel}   ·   Reference: ${data.contractCode}`, ML, HEADER_H + 34, { width: CW })
 
-    // Two-column layout
-    const colLeft = 60
-    const colRight = 310
-    const partyStartY = doc.y
+    // ────────────────────────────────────────────────────────────────────
+    // CONTENT — flowing sections
+    // ────────────────────────────────────────────────────────────────────
+    let y = HEADER_H + TITLE_H + 22
 
-    doc.fontSize(9).fillColor('#1a1a1a').font('Helvetica-Bold').text('Service Provider', colLeft, partyStartY)
-    doc.fontSize(9).fillColor('#333333').font('Helvetica')
-    doc.text('Engaging UX Design', colLeft)
-    doc.text('Cess Garcia', colLeft)
-    doc.text('info@engaginguxdesign.com', colLeft)
+    // Thin separator line under title bar
+    doc.moveTo(0, HEADER_H + TITLE_H).lineTo(PAGE_W, HEADER_H + TITLE_H)
+       .strokeColor(C.border).lineWidth(0.5).stroke()
 
-    doc.fontSize(9).fillColor('#1a1a1a').font('Helvetica-Bold').text('Client', colRight, partyStartY)
-    doc.fontSize(9).fillColor('#333333').font('Helvetica')
-    doc.text(data.clientCompany || data.clientName, colRight)
-    if (data.clientCompany) doc.text(data.clientName, colRight)
-    if (data.clientEmail) doc.text(data.clientEmail, colRight)
-    if (data.clientAddress) doc.text(data.clientAddress, colRight)
-    if (data.clientCity || data.clientCountry) {
-      doc.text([data.clientCity, data.clientCountry].filter(Boolean).join(', '), colRight)
+    // ─── helper: draw a rust-coloured section label with underline
+    function sectionLabel(label: string) {
+      doc.fontSize(7).fillColor(C.rust).font('Helvetica-Bold')
+         .text(label, ML, y, { characterSpacing: 1.5, width: CW })
+      y += 11
+      doc.moveTo(ML, y).lineTo(PAGE_W - MR, y).strokeColor(C.border).lineWidth(0.5).stroke()
+      y += 10
     }
 
-    doc.moveDown(1.5)
-    doc.moveTo(60, doc.y).lineTo(535, doc.y).strokeColor('#dddddd').lineWidth(1).stroke()
-    doc.moveDown(0.8)
+    // ─── helper: horizontal divider with spacing
+    function divider() {
+      y += 12
+      doc.moveTo(ML, y).lineTo(PAGE_W - MR, y).strokeColor(C.border).lineWidth(0.5).stroke()
+      y += 14
+    }
 
-    // ── Project Scope ────────────────────────────────────────────────────
-    doc
-      .fontSize(7)
-      .fillColor('#999999')
-      .font('Helvetica-Bold')
-      .text('PROJECT SCOPE', { characterSpacing: 1.5 })
-    doc.moveDown(0.4)
+    // ── PARTIES ──────────────────────────────────────────────────────────
+    sectionLabel('PARTIES')
 
-    doc.fontSize(9).fillColor('#333333').font('Helvetica')
-    doc.text(`Phase:  ${data.phaseLabel}`)
-    doc.text(`Start:  ${fmtDate(data.phaseStart)}   ·   End: ${fmtDate(data.phaseEnd)}`)
+    const colMid = PAGE_W / 2 + 10
+    const partiesStartY = y
+
+    // Provider (left column)
+    doc.fontSize(8).fillColor(C.dark).font('Helvetica-Bold')
+       .text('Service Provider', ML, partiesStartY)
+    doc.fontSize(9).fillColor(C.text).font('Helvetica')
+    let provY = partiesStartY + 13
+    doc.text('Engaging UX Design', ML, provY); provY += 12
+    doc.text('Cess Garcia', ML, provY); provY += 12
+    doc.text('info@engaginguxdesign.com', ML, provY); provY += 12
+
+    // Client (right column)
+    doc.fontSize(8).fillColor(C.dark).font('Helvetica-Bold')
+       .text('Client', colMid, partiesStartY)
+    doc.fontSize(9).fillColor(C.text).font('Helvetica')
+    let cliY = partiesStartY + 13
+    doc.text(data.clientCompany || data.clientName, colMid, cliY, { width: PAGE_W - MR - colMid }); cliY += 12
+    if (data.clientCompany) { doc.text(data.clientName, colMid, cliY, { width: PAGE_W - MR - colMid }); cliY += 12 }
+    if (data.clientEmail)   { doc.text(data.clientEmail, colMid, cliY, { width: PAGE_W - MR - colMid }); cliY += 12 }
+    if (data.clientAddress) { doc.text(data.clientAddress, colMid, cliY, { width: PAGE_W - MR - colMid }); cliY += 12 }
+    if (data.clientCity || data.clientCountry) {
+      doc.text([data.clientCity, data.clientCountry].filter(Boolean).join(', '), colMid, cliY, { width: PAGE_W - MR - colMid })
+      cliY += 12
+    }
+
+    y = Math.max(provY, cliY) + 4
+    divider()
+
+    // ── PROJECT SCOPE ─────────────────────────────────────────────────────
+    sectionLabel('PROJECT SCOPE')
+
+    doc.fontSize(9).fillColor(C.text).font('Helvetica')
+    doc.text(`Phase:  ${data.phaseLabel}`, ML, y); y += 13
+    doc.text(`Start:  ${fmtDate(data.phaseStart)}   ·   End: ${fmtDate(data.phaseEnd)}`, ML, y); y += 13
 
     if (data.deliverables) {
-      doc.moveDown(0.4)
-      doc.font('Helvetica-Bold').fillColor('#1a1a1a').text('Deliverables:')
-      doc.font('Helvetica').fillColor('#333333').text(data.deliverables, { indent: 12, width: W })
+      y += 4
+      doc.fontSize(8.5).fillColor(C.dark).font('Helvetica-Bold').text('Deliverables:', ML, y); y += 13
+      doc.fontSize(9).fillColor(C.text).font('Helvetica')
+         .text(data.deliverables, ML + 12, y, { width: CW - 12 })
+      y = doc.y + 6
+    } else {
+      y += 4
     }
 
-    doc.moveDown(1)
-    doc.moveTo(60, doc.y).lineTo(535, doc.y).strokeColor('#dddddd').lineWidth(1).stroke()
-    doc.moveDown(0.8)
+    divider()
 
-    // ── Payment schedule ─────────────────────────────────────────────────
-    doc
-      .fontSize(7)
-      .fillColor('#999999')
-      .font('Helvetica-Bold')
-      .text('PAYMENT SCHEDULE', { characterSpacing: 1.5 })
-    doc.moveDown(0.4)
+    // ── PAYMENT SCHEDULE ──────────────────────────────────────────────────
+    sectionLabel('PAYMENT SCHEDULE')
 
-    doc.fontSize(9).fillColor('#333333').font('Helvetica')
-    if (data.p1 > 0) doc.text(`Payment 1 — Before work begins:   ${fmtEur(data.p1)}`)
-    if (data.p2 > 0) doc.text(`Payment 2 — At agreed midpoint:   ${fmtEur(data.p2)}`)
-    if (data.p3 > 0) doc.text(`Payment 3 — On final delivery:   ${fmtEur(data.p3)}`)
+    // Table header row
+    doc.rect(ML - 8, y - 2, CW + 16, 18).fill(C.cream)
+    doc.fontSize(7.5).fillColor(C.muted).font('Helvetica-Bold')
+    doc.text('MILESTONE', ML, y + 2, { width: 130 })
+    doc.text('TIMING', ML + 135, y + 2, { width: 190 })
+    doc.text('AMOUNT', ML, y + 2, { width: CW, align: 'right' })
+    y += 20
 
-    doc.moveDown(0.4)
-    doc
-      .fontSize(10)
-      .fillColor('#1a1a1a')
-      .font('Helvetica-Bold')
-      .text(`Total contract value:   ${fmtEur(data.totalValue)}`)
+    const payRows: [string, string, number][] = []
+    if (data.p1 > 0) payRows.push(['Payment 1', 'Due before work begins', data.p1])
+    if (data.p2 > 0) payRows.push(['Payment 2', 'Due at agreed midpoint', data.p2])
+    if (data.p3 > 0) payRows.push(['Payment 3', 'Due before final delivery', data.p3])
+
+    payRows.forEach((row, i) => {
+      if (i % 2 === 1) {
+        doc.rect(ML - 8, y - 2, CW + 16, 18).fill(C.rowAlt)
+      }
+      doc.fontSize(9).fillColor(C.text).font('Helvetica')
+         .text(row[0], ML, y, { width: 130 })
+         .text(row[1], ML + 135, y, { width: 190 })
+      doc.fontSize(9).fillColor(C.dark).font('Helvetica-Bold')
+         .text(fmtEur(row[2]), ML, y, { width: CW, align: 'right' })
+      y += 18
+    })
+
+    // Total row (highlighted with rust accent)
+    y += 4
+    doc.rect(ML - 8, y - 3, CW + 16, 22).fill(C.cream)
+    doc.moveTo(ML - 8, y - 3).lineTo(PAGE_W - MR + 8, y - 3)
+       .strokeColor(C.rust).lineWidth(0.7).stroke()
+    doc.fontSize(10).fillColor(C.rust).font('Helvetica-Bold')
+       .text(`Total:  ${fmtEur(data.totalValue)}`, ML, y + 1, { width: CW, align: 'right' })
+    y += 24
 
     if (data.initFee > 0) {
-      doc
-        .fontSize(8)
-        .fillColor('#888888')
-        .font('Helvetica')
-        .text(`(includes initial fee of ${fmtEur(data.initFee)})`)
+      doc.fontSize(8).fillColor(C.subtle).font('Helvetica')
+         .text(`Includes non-refundable initiation fee of ${fmtEur(data.initFee)}`, ML, y, { width: CW, align: 'right' })
+      y += 14
     }
 
-    doc.moveDown(1)
-    doc.moveTo(60, doc.y).lineTo(535, doc.y).strokeColor('#dddddd').lineWidth(1).stroke()
-    doc.moveDown(0.8)
+    divider()
 
-    // ── Agreement statement ───────────────────────────────────────────────
-    doc
-      .fontSize(8.5)
-      .fillColor('#444444')
-      .font('Helvetica')
-      .text(
-        'By signing below, the Client confirms that they have read, understood, and agree to the full terms and conditions ' +
-        'of this service agreement as prepared by Engaging UX Design. The full agreement document is binding upon signature.',
-        { align: 'justify', width: W },
-      )
+    // ── AGREEMENT STATEMENT ────────────────────────────────────────────────
+    doc.fontSize(8.5).fillColor(C.text).font('Helvetica')
+       .text(
+         'By signing below, the Client confirms that they have read, understood, and agree to the full terms and ' +
+         'conditions of this service agreement as prepared by Engaging UX Design. The full agreement document is ' +
+         'binding upon signature.',
+         ML, y, { align: 'justify', width: CW },
+       )
+    y = doc.y + 28
 
-    doc.moveDown(2)
-    doc.moveTo(60, doc.y).lineTo(535, doc.y).strokeColor('#dddddd').lineWidth(1).stroke()
-    doc.moveDown(1.5)
+    // ── SIGNATURE BLOCK ────────────────────────────────────────────────────
+    // DocuSign anchor strings — keep them intact so tabs auto-position
+    const sigColLeft  = ML
+    const sigColRight = ML + CW / 2 + 20
+    const sigLineW    = 185
+    const dateLineW   = 130
 
-    // ── Signature block ───────────────────────────────────────────────────
-    // Anchor strings are detected by DocuSign to place sign-here / date tabs
-    const sigY = doc.y
+    // Labels in rust (match section style)
+    doc.fontSize(7).fillColor(C.rust).font('Helvetica-Bold')
+       .text('CLIENT SIGNATURE', sigColLeft, y, { characterSpacing: 1.5, width: sigLineW })
+    doc.fontSize(7).fillColor(C.rust).font('Helvetica-Bold')
+       .text('DATE SIGNED', sigColRight, y, { characterSpacing: 1.5, width: dateLineW })
 
-    // Client signature
-    doc
-      .fontSize(7)
-      .fillColor('#999999')
-      .font('Helvetica-Bold')
-      .text('CLIENT SIGNATURE', colLeft, sigY, { characterSpacing: 1.5 })
+    // Space where DocuSign places the signature image / date field
+    y += 44
+    doc.moveTo(sigColLeft, y).lineTo(sigColLeft + sigLineW, y)
+       .strokeColor(C.dark).lineWidth(0.5).stroke()
+    doc.moveTo(sigColRight, y).lineTo(sigColRight + dateLineW, y)
+       .strokeColor(C.dark).lineWidth(0.5).stroke()
 
-    doc.moveDown(2.5)
-    doc.moveTo(colLeft, doc.y).lineTo(colLeft + 200, doc.y).strokeColor('#1a1a1a').lineWidth(0.5).stroke()
-    doc.moveDown(0.3)
-    doc.fontSize(8).fillColor('#888888').font('Helvetica').text(data.clientName, colLeft)
+    y += 6
+    doc.fontSize(8.5).fillColor(C.subtle).font('Helvetica')
+       .text(data.clientName, sigColLeft, y, { width: sigLineW })
 
-    // Date
-    doc
-      .fontSize(7)
-      .fillColor('#999999')
-      .font('Helvetica-Bold')
-      .text('DATE SIGNED', colRight, sigY, { characterSpacing: 1.5 })
-
-    doc.moveDown(2.5)
-    doc.moveTo(colRight, doc.y - 14).lineTo(colRight + 140, doc.y - 14).strokeColor('#1a1a1a').lineWidth(0.5).stroke()
+    // ── FOOTER BAR ─────────────────────────────────────────────────────────
+    const FOOTER_Y = 841.89 - 32
+    doc.rect(0, FOOTER_Y, PAGE_W, 32).fill(C.cream)
+    doc.moveTo(0, FOOTER_Y).lineTo(PAGE_W, FOOTER_Y).strokeColor(C.border).lineWidth(0.5).stroke()
+    doc.fontSize(7.5).fillColor(C.muted).font('Helvetica')
+       .text('engaginguxdesign.com  ·  info@engaginguxdesign.com', ML, FOOTER_Y + 10, { width: CW * 0.6 })
+    doc.fontSize(7.5).fillColor(C.subtle).font('Helvetica')
+       .text(`Contract ID: ${data.contractCode}`, ML, FOOTER_Y + 10, { width: CW, align: 'right' })
 
     doc.end()
   })

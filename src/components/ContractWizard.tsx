@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   PLANS,
   ADDON_PRICES,
@@ -89,6 +90,7 @@ export type WizardPrefill = {
 }
 
 export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: WizardPrefill; mode?: 'new' | 'edit' } = {}) {
+  const router = useRouter()
   const [step, setStep] = useState(1)
   const editingCode = mode === 'edit' && prefill ? prefill.contractCode : null
 
@@ -335,9 +337,9 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
     if (step > 1) setStep(s => (s === 6 && skipRevisions) ? 4 : s - 1)
   }
 
-  function generate(targetLang?: 'en' | 'nl') {
+  async function generate(targetLang?: 'en' | 'nl') {
     const lang = targetLang ?? previewLang
-    openContractPrintWindow(lang, previewData)
+    await openContractPrintWindow(lang, previewData)
   }
 
   async function saveContract() {
@@ -372,16 +374,64 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
         throw new Error(j.error || 'Save failed')
       }
       setSaveStatus({ type: 'success', text: `Saved — ${contractId}` })
+      setTimeout(() => router.push(`/contracts/${encodeURIComponent(contractId)}`), 1200)
     } catch (e) {
       setSaveStatus({ type: 'error', text: e instanceof Error ? e.message : 'Save failed' })
-    } finally {
       setSaving(false)
       setTimeout(() => setSaveStatus(null), 4000)
     }
   }
 
-  function sendForSignature() {
-    alert(`Send for signature flow not connected yet.\n\nContract ${contractId} for ${clientName || 'unnamed client'}\nTotal: ${fmtEur(total)}\n\nThis would normally upload the generated PDF to Xodo Sign / eIDAS provider.`)
+  async function sendForSignature() {
+    if (!clientName.trim()) {
+      alert('Add a client name before sending.')
+      return
+    }
+    const recipientEmail = (matchedClient?.dedicatedEmail || email || '').trim()
+    if (!recipientEmail) {
+      alert('No client email found. Add one in Step 1 before sending.')
+      return
+    }
+    setSaving(true)
+    setSaveStatus(null)
+    try {
+      // 1. Upsert the contract record
+      const saveRes = await fetch('/api/contracts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contractCode: contractId,
+          contractType,
+          plan: effectivePlan,
+          phase,
+          phaseLabel: PHASE_LABELS[phase],
+          language: previewLang,
+          projectName,
+          deliverables,
+          phaseStart,
+          phaseEnd,
+          client: previewData.client,
+          pricing: previewData.pricing,
+          data: previewData,
+        }),
+      })
+      if (!saveRes.ok) {
+        const j = await saveRes.json().catch(() => ({}))
+        throw new Error(j.error || 'Save failed')
+      }
+      // 2. Send to DocuSign
+      const signRes = await fetch(`/api/contracts/${encodeURIComponent(contractId)}/send-for-signature`, {
+        method: 'POST',
+      })
+      const j = await signRes.json().catch(() => ({}))
+      if (!signRes.ok) throw new Error(j.error || 'Failed to send for signature')
+      setSaveStatus({ type: 'success', text: `Sent to ${j.sentTo || recipientEmail} for signature via DocuSign` })
+    } catch (e) {
+      setSaveStatus({ type: 'error', text: e instanceof Error ? e.message : 'Failed to send' })
+    } finally {
+      setSaving(false)
+      setTimeout(() => setSaveStatus(null), 6000)
+    }
   }
 
   // Build a flat snapshot for the preview component
@@ -1302,11 +1352,25 @@ function fmtDate(iso: string, lang: 'en' | 'nl'): string {
  * template is currently English only — that is the legal master version.
  */
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function openContractPrintWindow(lang: 'en' | 'nl', data: PreviewData) {
+export async function openContractPrintWindow(lang: 'en' | 'nl', data: PreviewData) {
   const today = new Date().toLocaleDateString('en-GB', {
     day: '2-digit', month: 'long', year: 'numeric',
   })
-  const origin = typeof window !== 'undefined' ? window.location.origin : ''
+
+  // Embed the signature as a base64 data URL so it works reliably in about:blank
+  let sigSrc = ''
+  try {
+    const res = await fetch('/cess-signature.png')
+    const blob = await res.blob()
+    sigSrc = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result as string)
+      reader.onerror = reject
+      reader.readAsDataURL(blob)
+    })
+  } catch {
+    // signature won't render but contract remains usable
+  }
   const c = data.client
   const isCustom = data.contractType === 'custom'
   const escape = (s: string) =>
@@ -1576,30 +1640,32 @@ export function openContractPrintWindow(lang: 'en' | 'nl', data: PreviewData) {
   .toolbar { position: absolute; top: 12px; right: 12px; background: #1c1008; color: #f7ede2; padding: 8px 14px; border-radius: 100px; font-size: 11px; cursor: pointer; border: none; font-family: inherit; font-weight: 600; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 10; }
   @media print {
     html, body { background: #fff; }
-    /* Strip the screen-only sheet sizing so the browser respects @page exactly
-       and lets content flow naturally across pages. The hardcoded "Page X" /
-       page-break-after on .page caused overlapping content + huge gaps because
-       the printable area (~277mm) is shorter than the design 297mm. */
+    /* Each .page div = exactly one physical A4 page.
+       height = 297mm - 6.35mm top - 14.46mm bottom = 276.19mm */
     .page {
       display: block;
-      width: auto;
-      height: auto;
+      width: 100%;
+      height: 276.19mm;
       min-height: 0;
-      max-height: none;
+      max-height: 276.19mm;
       margin: 0;
       padding: 0;
       border: none;
       border-radius: 0;
       box-shadow: none;
-      overflow: visible;
-      page-break-after: auto;
-      break-after: auto;
+      overflow: hidden;
+      break-after: always;
+      page-break-after: always;
     }
-    .page-body { flex: none; padding: 12px 14mm 8px; }
-    .page-footer { display: none; } /* per-page footers added by browser are unreliable; rely on @page bottom margin */
-    .page-header-cont { display: none; } /* repeated dark headers cause spacing issues mid-flow */
-    .contract-header { padding: 18px 14mm 16px; border-radius: 0; }
-    .contract-title-bar { padding: 12px 14mm; }
+    .page:last-child {
+      break-after: avoid;
+      page-break-after: avoid;
+    }
+    .page-body { flex: none; padding: 10px 14mm 6px; }
+    .page-footer { display: none; }
+    .page-header-cont { display: none; }
+    .contract-header { padding: 14px 14mm 12px; border-radius: 0; }
+    .contract-title-bar { padding: 10px 14mm; }
     .toolbar { display: none; }
 
     /* Keep critical blocks together */
@@ -1616,11 +1682,9 @@ export function openContractPrintWindow(lang: 'en' | 'nl', data: PreviewData) {
     .clause,
     .note { break-inside: avoid; page-break-inside: avoid; }
 
-    /* Avoid orphan section labels at the bottom of a page */
     .section-label { break-after: avoid; page-break-after: avoid; }
   }
-  /* A4 with the exact margins from the print dialog: T 6.35mm  B 14.46mm  L/R 6.35mm */
-  @page { size: A4; margin: 6.35mm 6.35mm 14.46mm 6.35mm; }
+  @page { size: A4 portrait; margin: 6.35mm 6.35mm 14.46mm 6.35mm; }
 </style>
 </head>
 <body>
@@ -1841,7 +1905,7 @@ export function openContractPrintWindow(lang: 'en' | 'nl', data: PreviewData) {
       <div class="sig-grid">
         <div class="sig-block">
           <div class="sig-party">Engaging UX Design</div>
-          <div class="sig-line signed"><img class="sig-img" src="${escape(origin)}/cess-signature.png" alt="Cess de Laat signature" /></div>
+          <div class="sig-line signed"><img class="sig-img" src="${sigSrc}" alt="Cess de Laat signature" /></div>
           <div class="sig-stamp">✓ Signed electronically</div>
           <div class="sig-line signed"><span class="sig-typed">Cess de Laat — Founder</span></div>
           <div class="sig-field-label">Name &amp; title</div>
@@ -1871,7 +1935,7 @@ export function openContractPrintWindow(lang: 'en' | 'nl', data: PreviewData) {
 </div>
 
 <script>
-  window.addEventListener('load', function() { setTimeout(function(){ window.print() }, 350) });
+  window.addEventListener('load', function() { setTimeout(window.print, 300); });
 </script>
 </body>
 </html>`
