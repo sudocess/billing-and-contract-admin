@@ -23,7 +23,7 @@ export default function SendContractDialog({
     `Your contract ${contractCode}${defaultProjectName ? ` — ${defaultProjectName}` : ''}`,
   )
   const [message, setMessage] = useState(
-    `Hi ${clientFirstName},\n\nPlease find your service agreement below. Click the button to review the full contract.\n\nLet me know if you have any questions or change requests.\n\nBest,\nCess — Engaging UX Design`,
+    `Hi ${clientFirstName},\n\nPlease find your service agreement below. Click the button to review the full contract.\n\nLet me know if you have any questions or change requests.\n\nBest,\nCess Garcia - de Laat — Engaging UX Design`,
   )
   const [busy, setBusy] = useState(false)
   const [banner, setBanner] = useState<{ type: 'success' | 'error'; text: string } | null>(null)

@@ -131,7 +131,7 @@ export function buildContractSignaturePdf(data: ContractPdfData): Promise<Buffer
     doc.fontSize(9).fillColor(C.text).font('Helvetica')
     let provY = partiesStartY + 13
     doc.text('Engaging UX Design', ML, provY); provY += 12
-    doc.text('Cess Garcia', ML, provY); provY += 12
+    doc.text('Cess Garcia - de Laat', ML, provY); provY += 12
     doc.text('info@engaginguxdesign.com', ML, provY); provY += 12
 
     // Client (right column)

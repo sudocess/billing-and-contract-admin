@@ -37,7 +37,7 @@ export default function SigningForm({
 
   if (done) {
     return (
-      <div className="mt-10 bg-white rounded-2xl border border-[#d4bfb0] p-10 text-center shadow-sm">
+      <div className="mt-10 bg-white rounded-2xl border border-[#d4bfb0] p-6 sm:p-10 text-center shadow-sm">
         <div className="w-14 h-14 rounded-full bg-[#e6f4ea] flex items-center justify-center text-2xl mx-auto mb-4">✓</div>
         <h2 className="font-bold text-xl text-[#1c1008] mb-2">Contract signed</h2>
         <p className="text-[#8a6a55] text-sm leading-relaxed max-w-sm mx-auto">
@@ -52,7 +52,7 @@ export default function SigningForm({
 
   return (
     <div className="mt-10 bg-white rounded-2xl border border-[#d4bfb0] shadow-sm overflow-hidden">
-      <div className="bg-[#f7ede2] px-8 py-5 border-b border-[#d4bfb0]">
+      <div className="bg-[#f7ede2] px-5 sm:px-8 py-5 border-b border-[#d4bfb0]">
         <div className="text-[10px] font-bold uppercase tracking-widest text-[#8b3a1e] mb-1">
           eIDAS · Simple Electronic Signature
         </div>
@@ -62,7 +62,7 @@ export default function SigningForm({
         </p>
       </div>
 
-      <div className="px-8 py-6 space-y-5">
+      <div className="px-5 sm:px-8 py-6 space-y-5">
         <div>
           <label className="block text-[10px] font-bold uppercase tracking-widest text-[#9a7a65] mb-2">
             Type your full legal name to sign

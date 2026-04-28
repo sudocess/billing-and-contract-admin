@@ -39,6 +39,9 @@ export interface GenerateHtmlOptions {
   pdfMode?: boolean            // when true: overflow:visible so Puppeteer doesn't clip content
   clientSignedName?: string    // typed name when client has signed
   clientSignedAt?: string      // formatted date when client has signed
+  signingReference?: string    // UUID generated at signing time — embedded in audit trail
+  signerIp?: string            // IP address captured at signing time
+  signerTimestampIso?: string  // full ISO 8601 timestamp of signing (e.g. 2026-04-29T14:32:05.000Z)
 }
 
 const esc = (s: unknown) =>
@@ -54,7 +57,11 @@ function fmtLong(iso?: string | null): string {
 }
 
 export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOptions = {}): string {
-  const { sigBase64 = '', includePrintScript = false, pdfMode = false, clientSignedName = '', clientSignedAt = '' } = opts
+  const {
+    sigBase64 = '', includePrintScript = false, pdfMode = false,
+    clientSignedName = '', clientSignedAt = '',
+    signingReference = '', signerIp = '', signerTimestampIso = '',
+  } = opts
 
   const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })
   const c = data.client
@@ -315,7 +322,41 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
   .sig-typed { position: absolute; left: 4px; bottom: 6px; font-family: 'Gabarito', sans-serif; font-size: 12px; color: #1c1008; font-weight: 500; }
   .sig-field-label { font-size: 10px; color: #9a7a65; margin-bottom: 16px; }
   .sig-stamp { font-size: 9px; color: #2d6e2d; font-weight: 600; margin-top: -8px; margin-bottom: 14px; letter-spacing: 0.04em; }
+  .audit-trail { margin-top: 18px; border: 1px solid #d4bfb0; border-radius: 5px; overflow: hidden; break-inside: avoid; page-break-inside: avoid; }
+  .audit-trail-head { background: #1c1008; padding: 8px 14px 7px; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .audit-trail-title { font-size: 8.5px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: #c4a898; }
+  .audit-trail-sub { font-size: 8px; color: #7a5a48; }
+  .audit-trail-row { display: grid; grid-template-columns: 110px 1fr; border-bottom: 1px solid #f0e4d8; }
+  .audit-trail-row:last-child { border-bottom: none; }
+  .audit-trail-key { padding: 5px 12px; font-size: 8.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #9a7a65; background: #fdf5ef; border-right: 1px solid #f0e4d8; display: flex; align-items: center; }
+  .audit-trail-val { padding: 5px 12px; font-size: 10px; color: #1c1008; font-family: "Courier New", monospace; word-break: break-all; }
+  .audit-trail-val.ref { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; color: #1c1008; }
+  .audit-trail-val.prose { font-family: "Gabarito", sans-serif; font-size: 10px; color: #5c3a28; line-height: 1.5; }
   .toolbar { position: absolute; top: 12px; right: 12px; background: #1c1008; color: #f7ede2; padding: 8px 14px; border-radius: 100px; font-size: 11px; cursor: pointer; border: none; font-family: inherit; font-weight: 600; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 10; }
+  @media screen {
+    .page { width: min(210mm, 100%); }
+  }
+  @media screen and (max-width: 640px) {
+    html, body { font-size: 11.5px; }
+    .page { margin: 0; border-left: none; border-right: none; border-radius: 0; }
+    .page-body { padding: 18px 16px 14px; }
+    .contract-header { padding: 16px 16px 13px; flex-direction: column; gap: 6px; }
+    .header-meta { text-align: left; }
+    .contract-title-bar { padding: 12px 16px; }
+    .page-header-cont { padding: 10px 16px; }
+    .page-footer { padding: 8px 16px; flex-wrap: wrap; gap: 4px; }
+    .parties-grid { grid-template-columns: 1fr; gap: 0; }
+    .party-block:first-child { padding-right: 0; border-right: none; border-bottom: 1px solid #ecddd4; padding-bottom: 14px; margin-bottom: 14px; }
+    .details-row { grid-template-columns: 1fr; }
+    .detail-cell { border-right: none !important; border-bottom: 1px solid #ecddd4; }
+    .detail-cell:last-child { border-bottom: none; }
+    .payment-table th, .payment-table td { padding: 7px 8px; }
+    .tier-row { gap: 8px; }
+    .tier-badge { font-size: 8.5px; padding: 2px 6px; }
+    .addons-table td { padding: 6px 8px; }
+    .sig-grid { grid-template-columns: 1fr; gap: 24px; }
+    .toolbar { top: 8px; right: 8px; padding: 6px 12px; font-size: 10px; }
+  }
   @media print {
     html, body { background: #fff; }
     .page {
@@ -568,9 +609,9 @@ ${includePrintScript ? '<button class="toolbar" onclick="window.print()">Save as
       <div class="sig-grid">
         <div class="sig-block">
           <div class="sig-party">Engaging UX Design</div>
-          <div class="sig-line signed"><img class="sig-img" src="${sigBase64}" alt="Cess de Laat signature" /></div>
+          <div class="sig-line signed"><img class="sig-img" src="${sigBase64}" alt="Cess Garcia - de Laat signature" /></div>
           <div class="sig-stamp">✓ Signed electronically</div>
-          <div class="sig-line signed"><span class="sig-typed">Cess de Laat — Founder</span></div>
+          <div class="sig-line signed"><span class="sig-typed">Cess Garcia - de Laat — Founder</span></div>
           <div class="sig-field-label">Name &amp; title</div>
           <div class="sig-line signed"><span class="sig-typed">${esc(today)}</span></div>
           <div class="sig-field-label">Date</div>
@@ -589,6 +630,38 @@ ${includePrintScript ? '<button class="toolbar" onclick="window.print()">Save as
       <p class="clause" style="margin-top:14px;font-size:10.5px;color:#8a6a55;line-height:1.55;">
         This document is signed electronically by Engaging UX Design in accordance with EU Regulation 910/2014 (eIDAS) on electronic signatures. By countersigning above (or by replying in writing to confirm acceptance), the Client agrees to all terms set out in this Service Agreement.
       </p>
+
+      ${clientSignedName && signingReference ? `
+      <div class="audit-trail">
+        <div class="audit-trail-head">
+          <span class="audit-trail-title">Electronic Signature Audit Trail</span>
+          <span class="audit-trail-sub">EU Regulation 910/2014 (eIDAS) · Simple Electronic Signature (SES)</span>
+        </div>
+        <div class="audit-trail-row">
+          <div class="audit-trail-key">Reference</div>
+          <div class="audit-trail-val ref">${esc(signingReference)}</div>
+        </div>
+        <div class="audit-trail-row">
+          <div class="audit-trail-key">Document</div>
+          <div class="audit-trail-val">${esc(data.contractId)}</div>
+        </div>
+        <div class="audit-trail-row">
+          <div class="audit-trail-key">Signer</div>
+          <div class="audit-trail-val">${esc(clientSignedName)}</div>
+        </div>
+        <div class="audit-trail-row">
+          <div class="audit-trail-key">Timestamp</div>
+          <div class="audit-trail-val">${esc(signerTimestampIso)}</div>
+        </div>
+        <div class="audit-trail-row">
+          <div class="audit-trail-key">IP Address</div>
+          <div class="audit-trail-val">${esc(signerIp || 'not recorded')}</div>
+        </div>
+        <div class="audit-trail-row">
+          <div class="audit-trail-key">Method</div>
+          <div class="audit-trail-val prose">Signer confirmed intent by typing their full legal name and checking the consent checkbox. Constitutes a legally binding Simple Electronic Signature under EU Regulation 910/2014 (eIDAS).</div>
+        </div>
+      </div>` : ''}
     </div>
 
   </div>
@@ -599,6 +672,14 @@ ${includePrintScript ? '<button class="toolbar" onclick="window.print()">Save as
 </div>
 
 ${printScript}
+<script>
+  function reportHeight() {
+    var h = document.documentElement.scrollHeight;
+    if (window.parent !== window) window.parent.postMessage({ iframeHeight: h }, '*');
+  }
+  window.addEventListener('load', reportHeight);
+  window.addEventListener('resize', reportHeight);
+</script>
 </body>
 </html>`
 }

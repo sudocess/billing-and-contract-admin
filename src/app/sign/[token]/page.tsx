@@ -4,6 +4,7 @@ import path from 'path'
 import { prisma } from '@/lib/prisma'
 import { generateContractHtml, type PreviewData } from '@/lib/contractHtml'
 import SigningForm from './SigningForm'
+import ContractIframe from './ContractIframe'
 
 export const dynamic = 'force-dynamic'
 
@@ -108,15 +109,7 @@ export default async function SignPage({
         </div>
 
         {/* Contract preview in iframe */}
-        <div className="rounded-xl overflow-hidden shadow-lg border border-[#d4bfb0]">
-          <iframe
-            srcDoc={html}
-            title="Service Agreement"
-            className="w-full border-0"
-            style={{ height: '3800px' }}
-            scrolling="no"
-          />
-        </div>
+        <ContractIframe html={html} />
 
         {/* Signing form */}
         <SigningForm token={token} clientName={contract.clientName} />

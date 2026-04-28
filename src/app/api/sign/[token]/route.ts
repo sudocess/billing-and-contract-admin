@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import fs from 'fs'
 import path from 'path'
+import { randomUUID } from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { generateContractHtml, type PreviewData } from '@/lib/contractHtml'
 import { htmlToPdf } from '@/lib/htmlToPdf'
@@ -61,6 +62,7 @@ export async function POST(
   const signedAtFormatted = signedAt.toLocaleDateString('en-GB', {
     day: '2-digit', month: 'long', year: 'numeric',
   })
+  const signingReference = randomUUID().toUpperCase()
 
   // Generate signed PDF with both signatures filled in
   const previewData = contract.data as PreviewData
@@ -69,6 +71,9 @@ export async function POST(
     pdfMode: true,
     clientSignedName: name,
     clientSignedAt: signedAtFormatted,
+    signingReference,
+    signerIp: ip,
+    signerTimestampIso: signedAt.toISOString(),
   })
   const pdfBuffer = await htmlToPdf(html)
 

@@ -45,7 +45,7 @@ export async function POST(
 
   const message =
     body.message?.trim() ||
-    `Hi ${contract.clientName.split(' ')[0]},\n\nPlease find your service agreement below. Click the button to review the full contract.\n\nLet me know if you have any questions or change requests.\n\nBest,\nCess — Engaging UX Design`
+    `Hi ${contract.clientName.split(' ')[0]},\n\nPlease find your service agreement below. Click the button to review the full contract.\n\nLet me know if you have any questions or change requests.\n\nBest,\nCess Garcia - de Laat — Engaging UX Design`
 
   const origin =
     req.headers.get('origin') ||
