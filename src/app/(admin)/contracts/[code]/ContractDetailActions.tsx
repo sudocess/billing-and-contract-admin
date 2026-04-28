@@ -181,7 +181,7 @@ export default function ContractDetailActions({
         <div
           className={`fixed bottom-6 right-6 z-[200] max-w-sm flex items-start gap-3 rounded-xl px-4 py-3.5 shadow-xl text-sm font-medium leading-snug transition-all
             ${toast.type === 'success'
-              ? 'bg-brown-dark text-cream'
+              ? 'bg-brown-dark text-[#f7ede2]'
               : 'bg-danger text-white'
             }`}
         >

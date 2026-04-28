@@ -1,10 +1,26 @@
 import { NextResponse } from 'next/server'
+import fs from 'fs'
+import path from 'path'
 import { prisma } from '@/lib/prisma'
 import { readSession } from '@/lib/auth'
-import { buildContractSignaturePdf } from '@/lib/contractPdf'
+import { generateContractHtml, type PreviewData } from '@/lib/contractHtml'
+import { htmlToPdf } from '@/lib/htmlToPdf'
 import { sendEnvelopeForSignature } from '@/lib/docusign'
 
 export const dynamic = 'force-dynamic'
+
+// Read the admin signature once and cache it for the process lifetime
+let _sigBase64: string | null = null
+function getSignatureBase64(): string {
+  if (_sigBase64 !== null) return _sigBase64
+  try {
+    const buf = fs.readFileSync(path.join(process.cwd(), 'public', 'cess-signature.png'))
+    _sigBase64 = `data:image/png;base64,${buf.toString('base64')}`
+  } catch {
+    _sigBase64 = ''
+  }
+  return _sigBase64
+}
 
 export async function POST(
   _req: Request,
@@ -33,32 +49,19 @@ export async function POST(
   if (contract.status === 'SIGNED') {
     return NextResponse.json({ error: 'Contract is already signed.' }, { status: 400 })
   }
-
   if (contract.status === 'CANCELLED') {
     return NextResponse.json({ error: 'Cannot send a cancelled contract.' }, { status: 400 })
   }
 
   try {
-    const pdfBuffer = await buildContractSignaturePdf({
-      contractCode: contract.contractCode,
-      clientName: contract.clientName,
-      clientCompany: contract.clientCompany,
-      clientEmail: contract.clientEmail,
-      clientAddress: contract.clientAddress,
-      clientCity: contract.clientCity,
-      clientCountry: contract.clientCountry,
-      projectName: contract.projectName,
-      phaseLabel: contract.phaseLabel,
-      phaseStart: contract.phaseStart,
-      phaseEnd: contract.phaseEnd,
-      deliverables: contract.deliverables,
-      totalValue: contract.totalValue,
-      initFee: contract.initFee,
-      p1: contract.p1,
-      p2: contract.p2,
-      p3: contract.p3,
-    })
+    // Generate the exact same branded 3-page HTML contract
+    const previewData = contract.data as PreviewData
+    const html = generateContractHtml(previewData, { sigBase64: getSignatureBase64() })
 
+    // Render to PDF using headless Chromium (identical to what the print window produces)
+    const pdfBuffer = await htmlToPdf(html)
+
+    // Send the PDF to DocuSign for e-signature
     const envelopeId = await sendEnvelopeForSignature({
       contractCode: contract.contractCode,
       clientName: contract.clientName,
@@ -82,17 +85,12 @@ export async function POST(
       status: updated.status,
     })
   } catch (err) {
-    console.error('[docusign] send-for-signature failed', err)
+    console.error('[send-for-signature] failed', err)
     const message = err instanceof Error ? err.message : 'Failed to send for signature'
 
-    // Consent not yet granted — give a useful hint
     if (message.includes('consent_required')) {
       return NextResponse.json(
-        {
-          error:
-            'DocuSign consent not yet granted. Complete the one-time consent step and try again.',
-          consentRequired: true,
-        },
+        { error: 'DocuSign consent not yet granted. Complete the one-time consent step and try again.', consentRequired: true },
         { status: 403 },
       )
     }
