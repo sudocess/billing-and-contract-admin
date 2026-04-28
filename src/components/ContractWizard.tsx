@@ -127,6 +127,7 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
 
   // ── Step 6: hosting + add-ons (custom-aware editable prices) ──
   const [hosting, setHosting] = useState<Hosting>('hosting')
+  const [clientHostingNote, setClientHostingNote] = useState('')
   const [domainPrice, setDomainPrice] = useState<string>('') // €/yr
   const [hostingPrice, setHostingPrice] = useState<string>('') // €/yr
 
@@ -201,6 +202,7 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
         setHosting(d.hosting.mode || 'hosting')
         setDomainPrice(d.hosting.domainPrice ? String(d.hosting.domainPrice) : '')
         setHostingPrice(d.hosting.hostingPrice ? String(d.hosting.hostingPrice) : '')
+        if (d.hosting.clientHostingNote) setClientHostingNote(d.hosting.clientHostingNote)
       }
       if (d.addons) {
         setSeoAddon({ on: !!d.addons.seo?.on, price: d.addons.seo?.price ? String(d.addons.seo.price) : '' })
@@ -279,7 +281,7 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
     setSeoAddon(s => ({ ...s, price: s.price === '' ? (isCustom ? '' : String(defaults.seo)) : s.price }))
     setLogoAddon(s => ({ ...s, price: s.price === '' ? (isCustom ? '' : String(defaults.logo)) : s.price }))
     setSupportAddon(s => ({ ...s, price: s.price === '' ? (isCustom ? '' : String(defaults.support)) : s.price }))
-    setDomainPrice(p => p === '' ? (isCustom ? '' : '12') : p)
+    setDomainPrice(p => p === '' ? (isCustom ? '' : String(defaults.domain)) : p)
     setHostingPrice(p => p === '' ? (isCustom ? '' : '36') : p)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, contractType, effectivePlan])
@@ -323,12 +325,14 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
     })
   }
 
+  const skipRevisions = phase === 'phase1'
+
   function next() {
     if (step === 1) persistClientIfNeeded()
-    if (step < 7) setStep(s => s + 1)
+    if (step < 7) setStep(s => (s === 4 && skipRevisions) ? 6 : s + 1)
   }
   function prev() {
-    if (step > 1) setStep(s => s - 1)
+    if (step > 1) setStep(s => (s === 6 && skipRevisions) ? 4 : s - 1)
   }
 
   function generate(targetLang?: 'en' | 'nl') {
@@ -407,6 +411,7 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
       mode: hosting,
       domainPrice: parseFloat(domainPrice) || 0,
       hostingPrice: parseFloat(hostingPrice) || 0,
+      clientHostingNote: hosting === 'none' ? clientHostingNote : '',
     },
     addons: {
       seo:      { on: seoAddon.on,      price: parseFloat(seoAddon.price) || 0 },
@@ -422,14 +427,15 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
       {/* Step tracker */}
       <aside className="wizard-steps">
         {STEPS.map((s, i) => {
-          const state = step === s.num ? 'active' : step > s.num ? 'done' : 'default'
+          const isSkipped = s.num === 5 && skipRevisions
+          const state = isSkipped ? 'skipped' : step === s.num ? 'active' : step > s.num ? 'done' : 'default'
           return (
             <div key={s.num}>
-              <div className={`wstep wstep-${state}`}>
-                <div className="wstep-circle">{state === 'done' ? '\u2713' : s.num}</div>
+              <div className={`wstep wstep-${state}`} style={isSkipped ? { opacity: 0.35 } : undefined}>
+                <div className="wstep-circle">{state === 'done' ? '\u2713' : isSkipped ? '\u2014' : s.num}</div>
                 <div className="wstep-text">
                   <div className="wstep-label">{s.label}</div>
-                  <div className="wstep-sub">{s.sub}</div>
+                  <div className="wstep-sub">{isSkipped ? 'N/A \u2014 Phase 1' : s.sub}</div>
                 </div>
               </div>
               {i < STEPS.length - 1 && <div className="wstep-divider" />}
@@ -774,11 +780,28 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
               </div>
             )}
 
-            <div className="info-note mb-5">
+            <div className="info-note mb-3">
               {hosting === 'both' && `Domain + Hostinger hosting passed through at cost, charged annually to client. Combined: ${fmtEur((parseFloat(domainPrice) || 0) + (parseFloat(hostingPrice) || 0))}/yr.`}
               {hosting === 'hosting' && `Hostinger hosting passed through at cost. Client provides their own domain. ${fmtEur(parseFloat(hostingPrice) || 0)}/yr.`}
-              {hosting === 'none' && 'Client manages their own domain and hosting. No pass-through costs.'}
+              {hosting === 'none' && 'Client manages their own hosting. No pass-through costs. A responsibility clause will be added to the contract.'}
             </div>
+
+            {hosting === 'none' && (
+              <div className="mb-5">
+                <Field label="Client's hosting platform / provider (e.g. Wix, Squarespace, their own server)">
+                  <input
+                    value={clientHostingNote}
+                    onChange={e => setClientHostingNote(e.target.value)}
+                    placeholder="e.g. Wix (client owns domain and hosting)"
+                  />
+                </Field>
+                <div className="info-note mt-2 text-xs">
+                  The contract will include a clause stating the client is responsible for providing access to their hosting dashboard via info@engaginguxdesign.com, and that they accept all risks associated with their chosen hosting environment.
+                </div>
+              </div>
+            )}
+
+            {hosting !== 'none' && <div className="mb-5" />}
 
             <div className="text-xs font-bold uppercase tracking-wider text-brown-muted mb-2">Service add-ons</div>
 
@@ -1047,7 +1070,7 @@ export type PreviewData = {
   pricing: {
     total: number; initFee: number; p1: number; p2: number; p3: number; tier2Rate: number
   }
-  hosting: { mode: Hosting; domainPrice: number; hostingPrice: number }
+  hosting: { mode: Hosting; domainPrice: number; hostingPrice: number; clientHostingNote?: string }
   addons: {
     seo: { on: boolean; price: number }
     logo: { on: boolean; price: number; note: string }
@@ -1194,7 +1217,15 @@ export function ContractPreview({ lang, data }: { lang: 'en' | 'nl'; data: Previ
               </div>
             )}
             {data.hosting.mode === 'none' && (
-              <div className="mb-2"><strong>{t.hostingHeading}:</strong> {hostingLabel}</div>
+              <div className="mb-2">
+                <strong>{t.hostingHeading}:</strong> {hostingLabel}
+                {data.hosting.clientHostingNote && (
+                  <span className="text-brown-subtle"> ({data.hosting.clientHostingNote})</span>
+                )}
+                <div className="text-xs text-brown-subtle mt-1 leading-relaxed">
+                  {t.clientHostingClause}
+                </div>
+              </div>
             )}
             {activeAddons.length > 0 && (
               <ul className="list-disc list-inside space-y-0.5">
@@ -1413,7 +1444,7 @@ export function openContractPrintWindow(lang: 'en' | 'nl', data: PreviewData) {
   } else if (data.hosting.mode === 'hosting') {
     addonRows.push(`<tr><td class="addon-name">Hostinger hosting<div class="addon-note">Client provides own domain. Managed hosting passed through at cost.</div></td><td class="addon-price">${fmt(data.hosting.hostingPrice)}/yr</td></tr>`)
   } else {
-    addonRows.push(`<tr><td class="addon-name">Domain &amp; hosting<div class="addon-note">Client manages own domain and hosting. No pass-through costs.</div></td><td class="addon-price">€0</td></tr>`)
+    addonRows.push(`<tr><td class="addon-name">Domain &amp; hosting${data.hosting.clientHostingNote ? ` — ${data.hosting.clientHostingNote}` : ''}<div class="addon-note">Client manages own domain and hosting. No pass-through costs.<br/><br/><strong>Client responsibility clause:</strong> The client has chosen to use their own hosting and domain services. The client agrees to: (1) provide Engaging UX Design access to their hosting dashboard via info@engaginguxdesign.com; (2) accept full responsibility for all risks associated with their chosen hosting environment; (3) acknowledge that Engaging UX Design has no control over, and accepts no liability for, any technical disturbances, downtime, data loss, or security incidents related to the client's hosting provider.</div></td><td class="addon-price">€0</td></tr>`)
   }
   if (data.addons.seo.on)
     addonRows.push(`<tr><td class="addon-name">Foundational SEO setup<div class="addon-note">One-off setup of meta tags, structured data, sitemap, robots, and analytics baseline.</div></td><td class="addon-price">${fmt(data.addons.seo.price)}</td></tr>`)
@@ -1897,6 +1928,7 @@ const EN = {
   hostingBoth: 'Domain + Hostinger hosting provided by Engaging UX Design',
   hostingOnly: 'Hostinger hosting provided by Engaging UX Design (client provides own domain)',
   hostingNone: 'Client manages own domain and hosting',
+  clientHostingClause: 'The client has chosen to use their own hosting and domain services. The client agrees to: (1) provide Engaging UX Design access to their hosting dashboard via info@engaginguxdesign.com; (2) accept full responsibility for all risks associated with their chosen hosting environment; (3) acknowledge that Engaging UX Design has no control over, and accepts no liability for, any technical disturbances, downtime, data loss, or security incidents related to the client\'s hosting provider.',
   passthrough: 'pass-through at cost',
   oneOff: '(one-off)',
   month: 'month',
@@ -1965,6 +1997,7 @@ const NL = {
   hostingBoth: 'Domein + Hostinger hosting verzorgd door Engaging UX Design',
   hostingOnly: 'Hostinger hosting verzorgd door Engaging UX Design (opdrachtgever levert eigen domein)',
   hostingNone: 'Opdrachtgever beheert eigen domein en hosting',
+  clientHostingClause: 'De opdrachtgever heeft gekozen voor eigen hosting- en domeinbeheer. De opdrachtgever gaat akkoord met: (1) het verlenen van toegang aan Engaging UX Design tot het hostingdashboard via info@engaginguxdesign.com; (2) volledige verantwoordelijkheid voor alle risico\'s die samenhangen met de gekozen hostingomgeving; (3) de erkenning dat Engaging UX Design geen controle heeft over, en niet aansprakelijk is voor, technische storingen, uitval, gegevensverlies of beveiligingsincidenten die verband houden met de hostingprovider van de opdrachtgever.',
   passthrough: 'tegen kostprijs',
   oneOff: '(eenmalig)',
   month: 'maand',

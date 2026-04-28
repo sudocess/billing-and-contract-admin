@@ -7,17 +7,17 @@ export type PhaseKey = 'phase1' | 'phase2' | 'phase3' | 'custom'
 export type LanguageKey = 'bilingual' | 'en' | 'nl'
 
 export const PLANS: Record<PlanKey, { label: string; price: number; initFee: number; rate: number; description: string }> = {
-  basic:      { label: 'Basic',      price: 799,  initFee: 100, rate: 50, description: '5 pages, static, no apps' },
+  basic:      { label: 'Basic',      price: 799,  initFee: 50,  rate: 50, description: '5 pages, static, no apps' },
   business:   { label: 'Business',   price: 2499, initFee: 100, rate: 75, description: '8 pages, dynamic, 1 app' },
-  enterprise: { label: 'Enterprise', price: 4999, initFee: 100, rate: 95, description: 'Custom scope, multi-app' },
+  enterprise: { label: 'Enterprise', price: 4999, initFee: 200, rate: 95, description: 'Custom scope, multi-app' },
   custom:     { label: 'Custom',     price: 0,    initFee: 0,   rate: 75, description: 'Special pricing / friend rate' },
 }
 
-export const ADDON_PRICES: Record<PlanKey, { seo: number; logo: number; support: number }> = {
-  basic:      { seo: 300, logo: 150, support: 200 },
-  business:   { seo: 500, logo: 200, support: 350 },
-  enterprise: { seo: 800, logo: 350, support: 600 },
-  custom:     { seo: 500, logo: 200, support: 350 },
+export const ADDON_PRICES: Record<PlanKey, { seo: number; logo: number; support: number; domain: number }> = {
+  basic:      { seo: 200, logo: 200, support: 100, domain: 20 },
+  business:   { seo: 500, logo: 200, support: 500, domain: 50 },
+  enterprise: { seo: 800, logo: 200, support: 900, domain: 100 },
+  custom:     { seo: 500, logo: 200, support: 350, domain: 20 },
 }
 
 export const PHASE_LABELS: Record<PhaseKey, string> = {
