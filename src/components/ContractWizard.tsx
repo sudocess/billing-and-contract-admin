@@ -1292,7 +1292,7 @@ export async function openContractPrintWindow(_lang: 'en' | 'nl', data: PreviewD
   } catch {
     // signature won't render but the rest of the contract is usable
   }
-  const html = generateContractHtml(data, { sigBase64, includePrintScript: true })
+  const html = generateContractHtml(data, { sigBase64, includePrintScript: true, pdfMode: true })
 
   const w = window.open('', '_blank', 'width=900,height=1100')
   if (!w) {
