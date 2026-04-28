@@ -5,8 +5,8 @@ import { jwtVerify } from 'jose'
 const SESSION_COOKIE = 'invoice_admin_session'
 
 const PUBLIC_PATHS = ['/login', '/setup']
-const PUBLIC_API_PREFIXES = ['/api/auth/']
-const PUBLIC_PATH_PREFIXES = ['/contract-view/']
+const PUBLIC_API_PREFIXES = ['/api/auth/', '/api/sign/']
+const PUBLIC_PATH_PREFIXES = ['/contract-view/', '/sign/']
 
 function isPublicPath(pathname: string): boolean {
   if (PUBLIC_PATHS.includes(pathname)) return true
