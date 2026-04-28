@@ -1,26 +1,10 @@
 import { NextResponse } from 'next/server'
-import fs from 'fs'
-import path from 'path'
+import crypto from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { readSession } from '@/lib/auth'
-import { generateContractHtml, type PreviewData } from '@/lib/contractHtml'
-import { htmlToPdf } from '@/lib/htmlToPdf'
-import { sendEnvelopeForSignature } from '@/lib/docusign'
+import { buildContractSummaryHTML, sendContractEmail } from '@/lib/email'
 
 export const dynamic = 'force-dynamic'
-
-// Read the admin signature once and cache it for the process lifetime
-let _sigBase64: string | null = null
-function getSignatureBase64(): string {
-  if (_sigBase64 !== null) return _sigBase64
-  try {
-    const buf = fs.readFileSync(path.join(process.cwd(), 'public', 'cess-signature.png'))
-    _sigBase64 = `data:image/png;base64,${buf.toString('base64')}`
-  } catch {
-    _sigBase64 = ''
-  }
-  return _sigBase64
-}
 
 export async function POST(
   _req: Request,
@@ -53,48 +37,40 @@ export async function POST(
     return NextResponse.json({ error: 'Cannot send a cancelled contract.' }, { status: 400 })
   }
 
-  try {
-    // Generate the exact same branded 3-page HTML contract
-    const previewData = contract.data as PreviewData
-    const html = generateContractHtml(previewData, { sigBase64: getSignatureBase64() })
+  // Generate a cryptographically random token, valid for 14 days
+  const signingToken = crypto.randomBytes(32).toString('hex')
+  const signingTokenExpiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
 
-    // Render to PDF using headless Chromium (identical to what the print window produces)
-    const pdfBuffer = await htmlToPdf(html)
+  await prisma.contract.update({
+    where: { contractCode: contract.contractCode },
+    data: {
+      signingToken,
+      signingTokenExpiresAt,
+      sentAt: contract.sentAt ?? new Date(),
+      status: contract.status === 'DRAFT' ? 'PENDING' : contract.status,
+    },
+  })
 
-    // Send the PDF to DocuSign for e-signature
-    const envelopeId = await sendEnvelopeForSignature({
-      contractCode: contract.contractCode,
-      clientName: contract.clientName,
-      clientEmail,
-      pdfBuffer,
-    })
+  const appUrl = (process.env.APP_URL || 'http://localhost:3000').replace(/\/$/, '')
+  const signingUrl = `${appUrl}/sign/${signingToken}`
 
-    const updated = await prisma.contract.update({
-      where: { contractCode: contract.contractCode },
-      data: {
-        docusignEnvelopeId: envelopeId,
-        sentAt: contract.sentAt ?? new Date(),
-        status: contract.status === 'DRAFT' ? 'PENDING' : contract.status,
-      },
-    })
+  const summaryHtml = buildContractSummaryHTML({
+    contractCode: contract.contractCode,
+    projectName: contract.projectName,
+    clientName: contract.clientName,
+    totalValue: contract.totalValue,
+    initFee: contract.initFee,
+    phaseLabel: contract.phaseLabel,
+    language: contract.language,
+  })
 
-    return NextResponse.json({
-      ok: true,
-      envelopeId,
-      sentTo: clientEmail,
-      status: updated.status,
-    })
-  } catch (err) {
-    console.error('[send-for-signature] failed', err)
-    const message = err instanceof Error ? err.message : 'Failed to send for signature'
+  await sendContractEmail({
+    to: clientEmail,
+    subject: `Please sign your service agreement — ${contract.contractCode}`,
+    message: `Hi ${contract.clientName.split(' ')[0]},\n\nPlease review and sign your service agreement from Engaging UX Design. The link below is valid for 14 days.`,
+    contractSummaryHtml: summaryHtml,
+    viewUrl: signingUrl,
+  })
 
-    if (message.includes('consent_required')) {
-      return NextResponse.json(
-        { error: 'DocuSign consent not yet granted. Complete the one-time consent step and try again.', consentRequired: true },
-        { status: 403 },
-      )
-    }
-
-    return NextResponse.json({ error: message }, { status: 500 })
-  }
+  return NextResponse.json({ ok: true, sentTo: clientEmail })
 }

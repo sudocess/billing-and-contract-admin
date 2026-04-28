@@ -385,58 +385,6 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
     }
   }
 
-  async function sendForSignature() {
-    if (!clientName.trim()) {
-      alert('Add a client name before sending.')
-      return
-    }
-    const recipientEmail = (matchedClient?.dedicatedEmail || email || '').trim()
-    if (!recipientEmail) {
-      alert('No client email found. Add one in Step 1 before sending.')
-      return
-    }
-    setSaving(true)
-    setSaveStatus(null)
-    try {
-      // 1. Upsert the contract record
-      const saveRes = await fetch('/api/contracts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contractCode: contractId,
-          contractType,
-          plan: effectivePlan,
-          phase,
-          phaseLabel: PHASE_LABELS[phase],
-          language: previewLang,
-          projectName,
-          deliverables,
-          phaseStart,
-          phaseEnd,
-          client: previewData.client,
-          pricing: previewData.pricing,
-          data: previewData,
-        }),
-      })
-      if (!saveRes.ok) {
-        const j = await saveRes.json().catch(() => ({}))
-        throw new Error(j.error || 'Save failed')
-      }
-      // 2. Send to DocuSign
-      const signRes = await fetch(`/api/contracts/${encodeURIComponent(contractId)}/send-for-signature`, {
-        method: 'POST',
-      })
-      const j = await signRes.json().catch(() => ({}))
-      if (!signRes.ok) throw new Error(j.error || 'Failed to send for signature')
-      setSaveStatus({ type: 'success', text: `Sent to ${j.sentTo || recipientEmail} for signature via DocuSign` })
-    } catch (e) {
-      setSaveStatus({ type: 'error', text: e instanceof Error ? e.message : 'Failed to send' })
-    } finally {
-      setSaving(false)
-      setTimeout(() => setSaveStatus(null), 6000)
-    }
-  }
-
   // Build a flat snapshot for the preview component
   const previewData: PreviewData = {
     contractId,
@@ -963,7 +911,7 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
               <DeliveryCard icon="↓" label="Download EN" sub="PDF · English version" onClick={() => generate('en')} />
               <DeliveryCard icon="↓" label="Download NL" sub="PDF · Dutch version" onClick={() => generate('nl')} />
-              <DeliveryCard icon="✍" label="Send for signature" sub="Via Xodo Sign · eIDAS" onClick={sendForSignature} />
+              <DeliveryCard icon="✍" label="Send for signature" sub="Save first, then send from the contract page" onClick={saveContract} />
             </div>
           </div>
         )}

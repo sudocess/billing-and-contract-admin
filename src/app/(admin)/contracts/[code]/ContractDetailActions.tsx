@@ -85,14 +85,9 @@ export default function ContractDetailActions({
       )
       const j = await res.json().catch(() => ({}))
       if (!res.ok) {
-        if (j.consentRequired) {
-          showToast('error', 'DocuSign consent not yet granted. Grant consent in your DocuSign account and try again.')
-        } else {
-          throw new Error(j.error || 'Failed to send for signature')
-        }
-        return
+        throw new Error(j.error || 'Failed to send for signature')
       }
-      showToast('success', `Sent! DocuSign is emailing ${j.sentTo} with a secure signing link.`)
+      showToast('success', `Sent! ${j.sentTo} will receive a secure signing link.`)
       router.refresh()
     } catch (e) {
       showToast('error', e instanceof Error ? e.message : 'Failed to send for signature')
@@ -109,9 +104,9 @@ export default function ContractDetailActions({
     }
     setDialog({
       title: 'Send for signature',
-      sub: 'Via DocuSign · eIDAS',
-      detail: `DocuSign will send a secure signing link to ${clientEmail}. Once they sign, the contract status updates automatically.`,
-      confirmLabel: 'Send via DocuSign',
+      sub: 'eIDAS · Simple Electronic Signature',
+      detail: `A secure signing link will be emailed to ${clientEmail}. Once they sign, the contract status updates automatically.`,
+      confirmLabel: 'Send signing link',
       onConfirm: doSendForSignature,
     })
   }
@@ -212,7 +207,7 @@ export default function ContractDetailActions({
           className="btn btn-ghost btn-sm"
           onClick={sendForSignature}
           disabled={!!busy}
-          title={clientEmail ? `Send to ${clientEmail} for DocuSign signature` : 'No client email — add one first'}
+          title={clientEmail ? `Send signing link to ${clientEmail}` : 'No client email — add one first'}
         >
           {busy === 'sign' ? (
             'Sending…'

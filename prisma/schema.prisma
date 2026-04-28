@@ -150,7 +150,10 @@ model Contract {
   // Full preview snapshot (hosting, addons, etc.)
   data             Json
 
-  docusignEnvelopeId String?
+  signingToken         String?   @unique
+  signingTokenExpiresAt DateTime?
+  signerName           String?
+  signerIp             String?
 
   signedAt         DateTime?
   sentAt           DateTime?

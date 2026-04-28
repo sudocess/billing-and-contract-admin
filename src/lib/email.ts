@@ -136,6 +136,129 @@ function escapeHtml(str: string): string {
     .replace(/"/g, '&quot;')
 }
 
+/* ─────────── Signed contract confirmations ─────────── */
+
+interface SendSignedConfirmationOptions {
+  to: string
+  clientName: string
+  contractCode: string
+  projectName: string | null
+  signedAt: Date
+  pdfBuffer: Buffer
+}
+
+export async function sendSignedConfirmationToClient(opts: SendSignedConfirmationOptions) {
+  const firstName = opts.clientName.split(' ')[0]
+  const dateFmt = opts.signedAt.toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f0e8de;font-family:Helvetica,Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0e8de;padding:32px 0;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(28,16,8,0.08);">
+<tr><td style="background:#1c1008;padding:28px 32px;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+    <td style="font-family:Helvetica,Arial,sans-serif;font-size:18px;font-weight:bold;color:#f7ede2;">Engaging UX Design</td>
+    <td align="right" style="font-family:Helvetica,Arial,sans-serif;font-size:12px;color:rgba(247,237,226,0.6);">engaginguxdesign.com</td>
+  </tr></table>
+</td></tr>
+<tr><td style="padding:32px 32px 8px;">
+  <div style="font-family:Helvetica,Arial,sans-serif;font-size:22px;font-weight:bold;color:#1c1008;margin-bottom:8px;">Contract signed ✓</div>
+  <div style="font-family:Helvetica,Arial,sans-serif;font-size:14px;color:#3b2110;line-height:1.65;">
+    Hi ${escapeHtml(firstName)},<br><br>
+    Thank you for signing your service agreement with Engaging UX Design. Your signed copy is attached to this email for your records.<br><br>
+    <strong>Contract:</strong> <span style="font-family:monospace;">${escapeHtml(opts.contractCode)}</span><br>
+    ${opts.projectName ? `<strong>Project:</strong> ${escapeHtml(opts.projectName)}<br>` : ''}
+    <strong>Signed on:</strong> ${escapeHtml(dateFmt)}
+  </div>
+</td></tr>
+<tr><td style="padding:16px 32px 32px;">
+  <div style="font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#7a5a40;background:#f7ede2;border-left:3px solid #8b3a1e;padding:10px 14px;border-radius:0 6px 6px 0;">
+    📎 Your signed service agreement is attached as a PDF.
+  </div>
+</td></tr>
+<tr><td style="padding:20px 32px;border-top:1px solid rgba(59,33,16,0.1);">
+  <div style="font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#7a5a40;line-height:1.6;">
+    <strong style="color:#3b2110;">Engaging UX Design</strong><br>
+    engaginguxdesign.com · info@engaginguxdesign.com · +31 6 17 60 24 41
+  </div>
+</td></tr>
+</table>
+</td></tr>
+</table>
+</body></html>`
+
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM || 'Engaging UX Design <info@engaginguxdesign.com>',
+    to: opts.to,
+    subject: `Signed: Service Agreement ${opts.contractCode} — Engaging UX Design`,
+    html,
+    attachments: [{
+      filename: `Signed-Agreement-${opts.contractCode}.pdf`,
+      content: opts.pdfBuffer,
+      contentType: 'application/pdf',
+    }],
+  })
+}
+
+interface SendSignedNotificationOptions {
+  contractCode: string
+  clientName: string
+  clientEmail: string
+  signedAt: Date
+  signerIp: string
+  pdfBuffer: Buffer
+}
+
+export async function sendSignedNotificationToAdmin(opts: SendSignedNotificationOptions) {
+  const dateFmt = opts.signedAt.toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })
+  const timeFmt = opts.signedAt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZoneName: 'short' })
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f0e8de;font-family:Helvetica,Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0e8de;padding:32px 0;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(28,16,8,0.08);">
+<tr><td style="background:#1c1008;padding:28px 32px;">
+  <div style="font-family:Helvetica,Arial,sans-serif;font-size:18px;font-weight:bold;color:#f7ede2;">Contract signed — Admin notification</div>
+</td></tr>
+<tr><td style="padding:28px 32px;">
+  <div style="font-family:Helvetica,Arial,sans-serif;font-size:14px;color:#3b2110;line-height:1.8;">
+    <strong>Contract:</strong> <span style="font-family:monospace;">${escapeHtml(opts.contractCode)}</span><br>
+    <strong>Client:</strong> ${escapeHtml(opts.clientName)}<br>
+    <strong>Email:</strong> ${escapeHtml(opts.clientEmail)}<br>
+    <strong>Signed:</strong> ${escapeHtml(dateFmt)} at ${escapeHtml(timeFmt)}<br>
+    <strong>IP address:</strong> <span style="font-family:monospace;">${escapeHtml(opts.signerIp)}</span>
+  </div>
+</td></tr>
+<tr><td style="padding:0 32px 28px;">
+  <div style="font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#7a5a40;background:#f7ede2;border-left:3px solid #8b3a1e;padding:10px 14px;border-radius:0 6px 6px 0;">
+    📎 Signed contract attached.
+  </div>
+</td></tr>
+</table>
+</td></tr>
+</table>
+</body></html>`
+
+  const adminEmail = process.env.SMTP_USER || 'info@engaginguxdesign.com'
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM || 'Engaging UX Design <info@engaginguxdesign.com>',
+    to: adminEmail,
+    subject: `✓ Contract signed: ${opts.contractCode} — ${opts.clientName}`,
+    html,
+    attachments: [{
+      filename: `Signed-Agreement-${opts.contractCode}.pdf`,
+      content: opts.pdfBuffer,
+      contentType: 'application/pdf',
+    }],
+  })
+}
+
 /* ─────────── Contract email ─────────── */
 
 interface SendContractEmailOptions {

@@ -1,4 +1,4 @@
-// Shared contract HTML template — runs server-side (DocuSign PDF) and client-side (print window).
+// Shared contract HTML template — runs server-side (PDF generation) and client-side (print window).
 // Keep this file free of browser-only APIs.
 
 import type { ContractType, PhaseKey } from './contracts'
@@ -34,8 +34,11 @@ export type PreviewData = {
 }
 
 export interface GenerateHtmlOptions {
-  sigBase64?: string      // pre-fetched/read base64 data URL for the signature image
-  includePrintScript?: boolean  // add window.print() auto-print script (browser only)
+  sigBase64?: string           // admin signature image as base64 data URL
+  includePrintScript?: boolean // add window.print() auto-print script (browser only)
+  pdfMode?: boolean            // when true: overflow:visible so Puppeteer doesn't clip content
+  clientSignedName?: string    // typed name when client has signed
+  clientSignedAt?: string      // formatted date when client has signed
 }
 
 const esc = (s: unknown) =>
@@ -51,7 +54,7 @@ function fmtLong(iso?: string | null): string {
 }
 
 export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOptions = {}): string {
-  const { sigBase64 = '', includePrintScript = false } = opts
+  const { sigBase64 = '', includePrintScript = false, pdfMode = false, clientSignedName = '', clientSignedAt = '' } = opts
 
   const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })
   const c = data.client
@@ -318,17 +321,16 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
     .page {
       display: block;
       width: 100%;
-      height: 276.19mm;
-      min-height: 0;
-      max-height: 276.19mm;
       margin: 0;
       padding: 0;
       border: none;
       border-radius: 0;
       box-shadow: none;
-      overflow: hidden;
       break-after: always;
       page-break-after: always;
+      ${pdfMode
+        ? 'height: auto; min-height: 276.19mm; overflow: visible;'
+        : 'height: 276.19mm; max-height: 276.19mm; min-height: 0; overflow: hidden;'}
     }
     .page:last-child {
       break-after: avoid;
@@ -575,11 +577,12 @@ ${includePrintScript ? '<button class="toolbar" onclick="window.print()">Save as
         </div>
         <div class="sig-block">
           <div class="sig-party">${esc(clientName)}</div>
-          <div class="sig-line"></div>
+          <div class="sig-line${clientSignedName ? ' signed' : ''}">${clientSignedName ? `<span class="sig-typed">${esc(clientSignedName)}</span>` : ''}</div>
+          ${clientSignedName ? '<div class="sig-stamp">✓ Signed electronically</div>' : ''}
           <div class="sig-field-label">CLIENT SIGNATURE</div>
-          <div class="sig-line"></div>
+          <div class="sig-line${clientSignedName ? ' signed' : ''}">${clientSignedName ? `<span class="sig-typed">${esc(clientSignedName)}</span>` : ''}</div>
           <div class="sig-field-label">Name &amp; title</div>
-          <div class="sig-line"></div>
+          <div class="sig-line${clientSignedAt ? ' signed' : ''}">${clientSignedAt ? `<span class="sig-typed">${esc(clientSignedAt)}</span>` : ''}</div>
           <div class="sig-field-label">DATE SIGNED</div>
         </div>
       </div>
