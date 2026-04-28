@@ -39,7 +39,8 @@ export function getTotpUri(email: string, secret: string): string {
 
 export async function verifyTotp(token: string, secret: string): Promise<boolean> {
   try {
-    const result = await verifyOtp({ token: token.replace(/\s+/g, ''), secret, window: 1 })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = await (verifyOtp as any)({ token: token.replace(/\s+/g, ''), secret, window: 1 })
     return result.valid === true
   } catch {
     return false

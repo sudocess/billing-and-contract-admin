@@ -1057,7 +1057,7 @@ export type PreviewData = {
   }
 }
 
-function ContractPreview({ lang, data }: { lang: 'en' | 'nl'; data: PreviewData }) {
+export function ContractPreview({ lang, data }: { lang: 'en' | 'nl'; data: PreviewData }) {
   const today = new Date().toLocaleDateString(lang === 'nl' ? 'nl-NL' : 'en-GB', {
     day: '2-digit', month: 'long', year: 'numeric',
   })
@@ -1275,6 +1275,7 @@ export function openContractPrintWindow(lang: 'en' | 'nl', data: PreviewData) {
   const today = new Date().toLocaleDateString('en-GB', {
     day: '2-digit', month: 'long', year: 'numeric',
   })
+  const origin = typeof window !== 'undefined' ? window.location.origin : ''
   const c = data.client
   const isCustom = data.contractType === 'custom'
   const escape = (s: string) =>
@@ -1462,7 +1463,7 @@ export function openContractPrintWindow(lang: 'en' | 'nl', data: PreviewData) {
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Service Agreement — Engaging UX Design — ${escape(data.contractId)}</title>
-<link href="https://fonts.googleapis.com/css2?family=Gabarito:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Gabarito:wght@400;500;600;700&family=Dancing+Script:wght@600;700&display=swap" rel="stylesheet" />
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { background: #f0e4d8; font-family: "Gabarito", sans-serif; color: #1c1008; font-size: 12.5px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
@@ -1532,16 +1533,22 @@ export function openContractPrintWindow(lang: 'en' | 'nl', data: PreviewData) {
   .clause { font-size: 12px; color: #3b2110; line-height: 1.75; margin-bottom: 9px; }
   .clause:last-child { margin-bottom: 0; }
   .clause strong { color: #1c1008; }
-  .sig-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-top: 8px; }
+  .sig-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-top: 8px; break-inside: avoid; page-break-inside: avoid; }
+  .sig-block { break-inside: avoid; page-break-inside: avoid; }
   .sig-party { font-size: 10px; font-weight: 700; color: #8a6a55; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 26px; }
-  .sig-line { border-bottom: 1px solid #1c1008; margin-bottom: 5px; height: 30px; }
+  .sig-line { border-bottom: 1px solid #1c1008; margin-bottom: 5px; height: 30px; position: relative; }
+  .sig-line.signed { border-bottom-color: #1c1008; }
+  .sig-img { position: absolute; left: 4px; bottom: 0; height: 38px; width: auto; max-width: 220px; object-fit: contain; }
+  .sig-typed { position: absolute; left: 4px; bottom: 6px; font-family: 'Gabarito', sans-serif; font-size: 12px; color: #1c1008; font-weight: 500; }
   .sig-field-label { font-size: 10px; color: #9a7a65; margin-bottom: 16px; }
+  .sig-stamp { font-size: 9px; color: #2d6e2d; font-weight: 600; margin-top: -8px; margin-bottom: 14px; letter-spacing: 0.04em; }
   .toolbar { position: absolute; top: 12px; right: 12px; background: #1c1008; color: #f7ede2; padding: 8px 14px; border-radius: 100px; font-size: 11px; cursor: pointer; border: none; font-family: inherit; font-weight: 600; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 10; }
   @media print {
     html, body { background: #fff; }
-    /* Strip the screen-only sheet sizing so the browser respects @page exactly.
-       Use plain block layout — no flex stretching — so each .page is exactly
-       its content height and fits inside the printable area of one A4 sheet. */
+    /* Strip the screen-only sheet sizing so the browser respects @page exactly
+       and lets content flow naturally across pages. The hardcoded "Page X" /
+       page-break-after on .page caused overlapping content + huge gaps because
+       the printable area (~277mm) is shorter than the design 297mm. */
     .page {
       display: block;
       width: auto;
@@ -1554,13 +1561,32 @@ export function openContractPrintWindow(lang: 'en' | 'nl', data: PreviewData) {
       border-radius: 0;
       box-shadow: none;
       overflow: visible;
-      page-break-after: always;
-      break-after: page;
+      page-break-after: auto;
+      break-after: auto;
     }
-    .page:last-of-type { page-break-after: auto; break-after: auto; }
-    .page-body { flex: none; }
-    .page-footer { margin-top: 16px; }
+    .page-body { flex: none; padding: 12px 14mm 8px; }
+    .page-footer { display: none; } /* per-page footers added by browser are unreliable; rely on @page bottom margin */
+    .page-header-cont { display: none; } /* repeated dark headers cause spacing issues mid-flow */
+    .contract-header { padding: 18px 14mm 16px; border-radius: 0; }
+    .contract-title-bar { padding: 12px 14mm; }
     .toolbar { display: none; }
+
+    /* Keep critical blocks together */
+    .section,
+    .parties-grid,
+    .details-row,
+    .payment-table,
+    .payment-table tr,
+    .tier-row,
+    .addons-table,
+    .addons-table tr,
+    .sig-grid,
+    .sig-block,
+    .clause,
+    .note { break-inside: avoid; page-break-inside: avoid; }
+
+    /* Avoid orphan section labels at the bottom of a page */
+    .section-label { break-after: avoid; page-break-after: avoid; }
   }
   /* A4 with the exact margins from the print dialog: T 6.35mm  B 14.46mm  L/R 6.35mm */
   @page { size: A4; margin: 6.35mm 6.35mm 14.46mm 6.35mm; }
@@ -1784,19 +1810,26 @@ export function openContractPrintWindow(lang: 'en' | 'nl', data: PreviewData) {
       <div class="sig-grid">
         <div class="sig-block">
           <div class="sig-party">Engaging UX Design</div>
-          <div class="sig-line"></div>
-          <div class="sig-field-label">Name</div>
-          <div class="sig-line"></div>
+          <div class="sig-line signed"><img class="sig-img" src="${escape(origin)}/cess-signature.png" alt="Cess de Laat signature" /></div>
+          <div class="sig-stamp">✓ Signed electronically</div>
+          <div class="sig-line signed"><span class="sig-typed">Cess de Laat — Founder</span></div>
+          <div class="sig-field-label">Name &amp; title</div>
+          <div class="sig-line signed"><span class="sig-typed">${escape(today)}</span></div>
           <div class="sig-field-label">Date</div>
         </div>
         <div class="sig-block">
           <div class="sig-party">${escape(clientName)}</div>
           <div class="sig-line"></div>
-          <div class="sig-field-label">Name</div>
+          <div class="sig-field-label">Signature</div>
+          <div class="sig-line"></div>
+          <div class="sig-field-label">Name &amp; title</div>
           <div class="sig-line"></div>
           <div class="sig-field-label">Date</div>
         </div>
       </div>
+      <p class="clause" style="margin-top:14px;font-size:10.5px;color:#8a6a55;line-height:1.55;">
+        This document is signed electronically by Engaging UX Design in accordance with EU Regulation 910/2014 (eIDAS) on electronic signatures. By countersigning above (or by replying in writing to confirm acceptance), the Client agrees to all terms set out in this Service Agreement.
+      </p>
     </div>
 
   </div>

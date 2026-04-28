@@ -6,10 +6,12 @@ const SESSION_COOKIE = 'invoice_admin_session'
 
 const PUBLIC_PATHS = ['/login', '/setup']
 const PUBLIC_API_PREFIXES = ['/api/auth/']
+const PUBLIC_PATH_PREFIXES = ['/contract-view/']
 
 function isPublicPath(pathname: string): boolean {
   if (PUBLIC_PATHS.includes(pathname)) return true
   if (PUBLIC_API_PREFIXES.some((p) => pathname.startsWith(p))) return true
+  if (PUBLIC_PATH_PREFIXES.some((p) => pathname.startsWith(p))) return true
   return false
 }
 
