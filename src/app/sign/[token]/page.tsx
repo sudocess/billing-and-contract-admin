@@ -72,7 +72,7 @@ export default async function SignPage({
     : null
 
   return (
-    <div className="min-h-screen bg-[#f0e4d8]">
+    <div className="min-h-screen bg-[#f0e4d8] overflow-x-hidden">
       {/* Top bar */}
       <div className="bg-[#1c1008] text-[#f7ede2] px-6 py-4">
         <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">

@@ -84,7 +84,7 @@ export default function SigningForm({
             onChange={e => setAgreed(e.target.checked)}
             className="mt-0.5 h-4 w-4 rounded accent-[#1c1008] cursor-pointer"
           />
-          <span className="text-sm text-[#3b2110] leading-snug">
+          <span className="text-sm text-[#3b2110] leading-snug min-w-0 break-words">
             I have read and agree to all terms in this Service Agreement, including the{' '}
             <a
               href="https://engaginguxdesign.com/service-terms-and-conditions"
