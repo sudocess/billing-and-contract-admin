@@ -1,8 +1,21 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import SendModal from './SendModal'
+
+interface ClientSuggestion {
+  name: string
+  company?: string
+  email: string
+  phone?: string
+  kvk?: string
+  vat?: string
+  address?: string
+  city?: string
+  postalCode?: string
+  country?: string
+}
 
 interface LineItem {
   id: string
@@ -143,6 +156,53 @@ export default function InvoiceForm({ initialData, invoiceId }: InvoiceFormProps
   const [sendModal, setSendModal] = useState(false)
   const [savedId, setSavedId] = useState(invoiceId || '')
 
+  const [clients, setClients] = useState<ClientSuggestion[]>([])
+  const [clientSearch, setClientSearch] = useState(form.clientName)
+  const [showClientDropdown, setShowClientDropdown] = useState(false)
+  const clientDropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    fetch('/api/clients').then(r => r.json()).then(setClients).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (clientDropdownRef.current && !clientDropdownRef.current.contains(e.target as Node)) {
+        setShowClientDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const filteredClients = useMemo(() => {
+    if (!clientSearch.trim()) return clients
+    const q = clientSearch.toLowerCase()
+    return clients.filter(c =>
+      c.name.toLowerCase().includes(q) ||
+      (c.company && c.company.toLowerCase().includes(q))
+    )
+  }, [clients, clientSearch])
+
+  const selectClient = useCallback((c: ClientSuggestion) => {
+    const billingName = c.company || c.name
+    const contactName = c.company ? c.name : ''
+    setForm(prev => ({
+      ...prev,
+      clientName: billingName,
+      clientContact: contactName,
+      clientEmail: c.email || prev.clientEmail,
+      clientPhone: c.phone || prev.clientPhone,
+      clientAddress: c.address || prev.clientAddress,
+      clientCity: [c.postalCode, c.city].filter(Boolean).join(' ') || prev.clientCity,
+      clientCountry: c.country || prev.clientCountry,
+      clientVat: c.vat || prev.clientVat,
+      clientKvk: c.kvk || prev.clientKvk,
+    }))
+    setClientSearch(billingName)
+    setShowClientDropdown(false)
+  }, [])
+
   const showToast = useCallback((msg: string) => {
     setToast(msg)
     setTimeout(() => setToast(''), 3500)
@@ -257,9 +317,37 @@ export default function InvoiceForm({ initialData, invoiceId }: InvoiceFormProps
         </div>
         <div className="panel-body">
           <div className="grid grid-cols-2 gap-4">
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1.5 relative" ref={clientDropdownRef}>
               <label>Client / Company Name *</label>
-              <input type="text" placeholder="Acme BV" value={form.clientName} onChange={e => updateField('clientName', e.target.value)} />
+              <input
+                type="text"
+                placeholder="Acme BV"
+                value={showClientDropdown ? clientSearch : form.clientName}
+                onFocus={() => {
+                  setClientSearch(form.clientName)
+                  setShowClientDropdown(true)
+                }}
+                onChange={e => {
+                  setClientSearch(e.target.value)
+                  updateField('clientName', e.target.value)
+                  setShowClientDropdown(true)
+                }}
+              />
+              {showClientDropdown && filteredClients.length > 0 && (
+                <ul className="absolute top-full left-0 right-0 z-50 mt-1 bg-white border border-brown-subtle/30 rounded-lg shadow-lg max-h-52 overflow-y-auto">
+                  {filteredClients.map((c, i) => (
+                    <li
+                      key={i}
+                      className="px-3 py-2 cursor-pointer hover:bg-accent/10 flex flex-col"
+                      onMouseDown={e => { e.preventDefault(); selectClient(c) }}
+                    >
+                      <span className="text-sm font-medium text-brown-primary">{c.company || c.name}</span>
+                      {c.company && <span className="text-xs text-brown-subtle">{c.name}</span>}
+                      {c.email && <span className="text-xs text-brown-subtle">{c.email}</span>}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
             <div className="flex flex-col gap-1.5">
               <label>Contact Name</label>
