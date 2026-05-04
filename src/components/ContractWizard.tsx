@@ -6,9 +6,6 @@ import {
   PLANS,
   ADDON_PRICES,
   PHASE_LABELS,
-  KNOWN_CLIENTS,
-  findKnownClient,
-  upsertKnownClient,
   nextContractId,
   type PlanKey,
   type ContractType,
@@ -153,8 +150,14 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
   const [saveStatus, setSaveStatus] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   // ── Custom autocomplete for client name ──
+  const [knownClients, setKnownClients] = useState<KnownClient[]>([])
   const [nameFocused, setNameFocused] = useState(false)
   const clientNameRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    fetch('/api/clients').then(r => r.json()).then(setKnownClients).catch(() => {})
+  }, [])
+
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
       if (clientNameRef.current && !clientNameRef.current.contains(e.target as Node)) {
@@ -219,14 +222,18 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
     }
   }, [prefill])
 
-  const matchedClient = useMemo(() => findKnownClient(clientName), [clientName])
+  const matchedClient = useMemo(() => {
+    const normalized = clientName.trim().toLowerCase()
+    if (!normalized) return undefined
+    return knownClients.find(c => c.name.toLowerCase() === normalized)
+  }, [clientName, knownClients])
   const nameSuggestions = useMemo(() => {
     const q = clientName.trim().toLowerCase()
-    if (!q) return KNOWN_CLIENTS.slice(0, 8)
-    return KNOWN_CLIENTS.filter(c =>
+    if (!q) return knownClients.slice(0, 8)
+    return knownClients.filter(c =>
       c.name.toLowerCase().includes(q) || (c.company || '').toLowerCase().includes(q),
     ).slice(0, 8)
-  }, [clientName])
+  }, [clientName, knownClients])
   const planMeta = PLANS[plan]
   const effectivePlan: PlanKey = contractType === 'custom' ? 'custom' : plan
 
@@ -316,18 +323,31 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
   // Persist filled-in client info when leaving Step 1
   function persistClientIfNeeded() {
     if (!clientName.trim()) return
-    upsertKnownClient({
-      name: clientName.trim(),
-      email,
-      company,
-      phone,
-      kvk,
-      vat,
-      address,
-      postalCode,
-      city,
-      country,
+    const existing = knownClients.find(c => c.name.toLowerCase() === clientName.trim().toLowerCase())
+    fetch('/api/clients', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        clientCode: existing?.clientCode,
+        name: clientName.trim(),
+        email,
+        company,
+        phone,
+        kvk,
+        vat,
+        address,
+        postalCode,
+        city,
+        country,
+      }),
     })
+      .then(r => r.json())
+      .then(saved => setKnownClients(prev => {
+        const idx = prev.findIndex(c => c.clientCode === saved.clientCode)
+        if (idx >= 0) { const next = [...prev]; next[idx] = saved; return next }
+        return [...prev, saved]
+      }))
+      .catch(() => {})
   }
 
   const skipRevisions = phase === 'phase1'

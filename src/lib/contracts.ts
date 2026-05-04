@@ -99,11 +99,7 @@ export type ContractRow = {
   status: 'signed' | 'pending'
 }
 
-export const MOCK_CONTRACTS: ContractRow[] = [
-  { id: '2026-8832104-0001', client: 'Joey de Laat', type: 'Business Website',  phase: 'phase1', value: 2499, status: 'signed'  },
-  { id: '2026-8832104-0002', client: 'Joey de Laat', type: 'Business Website',  phase: 'phase2', value: 2499, status: 'pending' },
-  { id: '2026-5541290-0001', client: 'Marco Visser', type: 'Custom Agreement', phase: 'custom', value: 120,  status: 'signed'  },
-]
+export const MOCK_CONTRACTS: ContractRow[] = []
 
 export function findKnownClient(name: string): KnownClient | undefined {
   const normalized = name.trim().toLowerCase()

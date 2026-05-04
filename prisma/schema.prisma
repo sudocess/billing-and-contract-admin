@@ -162,3 +162,43 @@ model Contract {
 
   @@map("contracts")
 }
+
+model Client {
+  id             String   @id @default(uuid())
+  name           String
+  initials       String
+  email          String   @default("")
+  type           String   @default("New client")
+  currentPhase   Int      @default(0)
+  contracts      Int      @default(0)
+  invoices       Int      @default(0)
+  clientCode     String   @unique
+  phases         Json     @default("[]")
+  company        String?
+  phone          String?
+  kvk            String?
+  vat            String?
+  address        String?
+  city           String?
+  postalCode     String?
+  country        String?
+  dedicatedEmail String?
+  password       String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("clients")
+}
+
+model OwnerSettings {
+  id            String   @id @default("singleton")
+  iban          String   @default("")
+  bic           String   @default("")
+  bankName      String   @default("")
+  accountHolder String   @default("Engaging UX Design")
+  ownVat        String   @default("")
+  ownKvk        String   @default("")
+  updatedAt     DateTime @updatedAt
+
+  @@map("owner_settings")
+}

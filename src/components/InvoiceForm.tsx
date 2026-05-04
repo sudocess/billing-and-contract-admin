@@ -165,6 +165,28 @@ export default function InvoiceForm({ initialData, invoiceId }: InvoiceFormProps
     fetch('/api/clients').then(r => r.json()).then(setClients).catch(() => {})
   }, [])
 
+  // Pre-populate payment / compliance fields from saved owner settings (only for new invoices)
+  useEffect(() => {
+    if (isEdit) return
+    fetch('/api/settings/owner')
+      .then(r => r.json())
+      .then((s: Record<string, string>) => {
+        setForm(prev => ({
+          ...prev,
+          iban: prev.iban || s.iban || '',
+          bic: prev.bic || s.bic || '',
+          bankName: prev.bankName || s.bankName || '',
+          accountHolder: prev.accountHolder && prev.accountHolder !== 'Engaging UX Design'
+            ? prev.accountHolder
+            : s.accountHolder || 'Engaging UX Design',
+          ownVat: prev.ownVat || s.ownVat || '',
+          ownKvk: prev.ownKvk || s.ownKvk || '',
+        }))
+      })
+      .catch(() => {})
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (clientDropdownRef.current && !clientDropdownRef.current.contains(e.target as Node)) {

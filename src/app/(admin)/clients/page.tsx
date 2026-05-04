@@ -1,10 +1,11 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
-import { KNOWN_CLIENTS, upsertKnownClient, type KnownClient } from '@/lib/contracts'
+import { useState, useEffect } from 'react'
+import type { KnownClient } from '@/lib/contracts'
 
 type DraftClient = {
+  clientCode: string
   firstName: string
   lastName: string
   email: string
@@ -22,7 +23,7 @@ type DraftClient = {
 }
 
 const EMPTY_DRAFT: DraftClient = {
-  firstName: '', lastName: '', email: '', company: '', phone: '', kvk: '', vat: '',
+  clientCode: '', firstName: '', lastName: '', email: '', company: '', phone: '', kvk: '', vat: '',
   address: '', postalCode: '', city: '', country: 'Netherlands',
   type: 'New client', dedicatedEmail: '', password: '',
 }
@@ -48,11 +49,25 @@ type View =
   | { mode: 'form'; formMode: 'add' | 'edit'; original?: string }
 
 export default function ClientsPage() {
-  const [clients, setClients] = useState<KnownClient[]>(() => [...KNOWN_CLIENTS])
+  const [clients, setClients] = useState<KnownClient[]>([])
+  const [loading, setLoading] = useState(true)
   const [view, setView] = useState<View>({ mode: 'list' })
   const [draft, setDraft] = useState<DraftClient>(EMPTY_DRAFT)
   const [showPassword, setShowPassword] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  async function loadClients() {
+    try {
+      const res = await fetch('/api/clients')
+      const data = await res.json()
+      setClients(data)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { loadClients() }, [])
 
   function openAdd() {
     setDraft(EMPTY_DRAFT)
@@ -63,6 +78,7 @@ export default function ClientsPage() {
   function openEdit(c: KnownClient) {
     const { firstName, lastName } = splitName(c.name)
     setDraft({
+      clientCode: c.clientCode,
       firstName,
       lastName,
       email: c.email || '',
@@ -93,60 +109,53 @@ export default function ClientsPage() {
     setDraft(d => ({ ...d, password: pwd }))
     setShowPassword(true)
   }
-  function save() {
+
+  async function save() {
     const fullName = `${draft.firstName} ${draft.lastName}`.trim()
     if (!fullName) {
       alert('First or last name is required.')
       return
     }
     const initials = fullName.split(/\s+/).map(s => s[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '?'
-
-    if (view.mode === 'form' && view.formMode === 'edit' && view.original) {
-      const idx = KNOWN_CLIENTS.findIndex(c => c.name === view.original)
-      if (idx >= 0) {
-        const existing = KNOWN_CLIENTS[idx]
-        KNOWN_CLIENTS[idx] = {
-          ...existing,
+    setSaving(true)
+    try {
+      await fetch('/api/clients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientCode: draft.clientCode || undefined,
           name: fullName,
           initials,
           email: draft.email,
-          company: draft.company || undefined,
-          phone: draft.phone || undefined,
-          kvk: draft.kvk || undefined,
-          vat: draft.vat || undefined,
-          address: draft.address || undefined,
-          postalCode: draft.postalCode || undefined,
-          city: draft.city || undefined,
-          country: draft.country || undefined,
-          type: draft.type || existing.type,
-          dedicatedEmail: draft.dedicatedEmail || undefined,
-          password: draft.password || undefined,
-        }
-      }
-    } else {
-      upsertKnownClient({
-        name: fullName,
-        email: draft.email,
-        company: draft.company,
-        phone: draft.phone,
-        kvk: draft.kvk,
-        vat: draft.vat,
-        address: draft.address,
-        postalCode: draft.postalCode,
-        city: draft.city,
-        country: draft.country,
-        type: draft.type || undefined,
-        dedicatedEmail: draft.dedicatedEmail,
-        password: draft.password,
+          company: draft.company,
+          phone: draft.phone,
+          kvk: draft.kvk,
+          vat: draft.vat,
+          address: draft.address,
+          postalCode: draft.postalCode,
+          city: draft.city,
+          country: draft.country,
+          type: draft.type || 'New client',
+          dedicatedEmail: draft.dedicatedEmail,
+          password: draft.password,
+        }),
       })
+      await loadClients()
+      close()
+    } catch {
+      alert('Failed to save client. Please try again.')
+    } finally {
+      setSaving(false)
     }
-    setClients([...KNOWN_CLIENTS])
-    close()
   }
-  function remove(name: string) {
-    const idx = KNOWN_CLIENTS.findIndex(c => c.name === name)
-    if (idx >= 0) KNOWN_CLIENTS.splice(idx, 1)
-    setClients([...KNOWN_CLIENTS])
+
+  async function remove(clientCode: string) {
+    try {
+      await fetch(`/api/clients/${clientCode}`, { method: 'DELETE' })
+      await loadClients()
+    } catch {
+      alert('Failed to delete client.')
+    }
     setConfirmDelete(null)
   }
 
@@ -342,9 +351,9 @@ export default function ClientsPage() {
             All fields marked <strong>optional</strong> can be filled in later from the client profile.
           </div>
           <div className="nc-footer-btns">
-            <button type="button" className="btn-cancel-nc" onClick={close}>Cancel</button>
-            <button type="button" className="btn-add-nc" onClick={save}>
-              <span className="btn-add-dot" /> {isAdd ? 'Add client' : 'Save changes'}
+            <button type="button" className="btn-cancel-nc" onClick={close} disabled={saving}>Cancel</button>
+            <button type="button" className="btn-add-nc" onClick={save} disabled={saving}>
+              <span className="btn-add-dot" /> {saving ? 'Saving…' : isAdd ? 'Add client' : 'Save changes'}
             </button>
           </div>
         </div>
@@ -378,11 +387,14 @@ export default function ClientsPage() {
             <div className="text-xs text-brown-subtle">{clients.length} total</div>
           </div>
           <div className="p-4 sm:p-5">
-            {clients.length === 0 && (
+            {loading && (
+              <div className="text-sm text-brown-subtle text-center py-8">Loading clients…</div>
+            )}
+            {!loading && clients.length === 0 && (
               <div className="text-sm text-brown-subtle text-center py-8">No clients yet. Click <strong>Add Client</strong> to create one.</div>
             )}
             {clients.map(c => (
-              <div key={c.name} className="client-card">
+              <div key={c.clientCode} className="client-card">
                 <div className="client-avatar">{c.initials}</div>
                 <div className="flex-1 min-w-0">
                   <div className="font-bold text-brown-dark text-sm truncate">{c.name}</div>
@@ -395,7 +407,7 @@ export default function ClientsPage() {
                 </div>
                 <div className="flex gap-1.5">
                   <button type="button" className="btn btn-ghost btn-sm" onClick={() => openEdit(c)}>Edit</button>
-                  <button type="button" className="btn btn-sm btn-danger" onClick={() => setConfirmDelete(c.name)}>Delete</button>
+                  <button type="button" className="btn btn-sm btn-danger" onClick={() => setConfirmDelete(c.clientCode)}>Delete</button>
                 </div>
               </div>
             ))}
@@ -411,10 +423,7 @@ export default function ClientsPage() {
               <button type="button" className="modal-close" onClick={() => setConfirmDelete(null)} aria-label="Close">×</button>
             </div>
             <div className="p-5 text-sm text-brown-muted">
-              Permanently remove <strong>{confirmDelete}</strong> from the client list? This cannot be undone.
-              <div className="info-note mt-3">
-                Note: in-memory only. Existing contracts/invoices for this client will not be affected, but you will need to re-create the client to issue new ones.
-              </div>
+              Permanently remove <strong>{clients.find(c => c.clientCode === confirmDelete)?.name ?? confirmDelete}</strong> from the client list? This cannot be undone.
             </div>
             <div className="modal-footer">
               <button type="button" className="btn btn-ghost" onClick={() => setConfirmDelete(null)}>Cancel</button>
@@ -426,5 +435,3 @@ export default function ClientsPage() {
     </>
   )
 }
-
-/* ── Form helpers (legacy helpers removed; new UI uses inline .fc/.fg/.ff classes) ── */
