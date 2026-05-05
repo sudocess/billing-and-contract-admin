@@ -17,8 +17,6 @@ async function seedIfEmpty() {
         email: c.email,
         type: c.type,
         currentPhase: c.currentPhase,
-        contracts: c.contracts,
-        invoices: c.invoices,
         clientCode: c.clientCode,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         phases: c.phases as any,
@@ -39,8 +37,17 @@ async function seedIfEmpty() {
 
 export async function GET() {
   await seedIfEmpty()
-  const clients = await prisma.client.findMany({ orderBy: { createdAt: 'asc' } })
-  return NextResponse.json(clients)
+  const clients = await prisma.client.findMany({
+    orderBy: { createdAt: 'asc' },
+    include: { _count: { select: { contracts: true, invoices: true } } },
+  })
+  return NextResponse.json(
+    clients.map((c) => ({
+      ...c,
+      contracts: c._count.contracts,
+      invoices: c._count.invoices,
+    })),
+  )
 }
 
 export async function POST(req: Request) {
@@ -70,8 +77,6 @@ export async function POST(req: Request) {
       email: (body.email as string) || '',
       type: (body.type as string) || 'New client',
       currentPhase: Number(body.currentPhase) || 0,
-      contracts: Number(body.contracts) || 0,
-      invoices: Number(body.invoices) || 0,
       clientCode,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       phases: (body.phases as any) ?? [],
@@ -102,6 +107,28 @@ export async function POST(req: Request) {
       dedicatedEmail: str(body.dedicatedEmail),
       password: str(body.password),
     },
+  })
+
+  // Link any existing orphan contracts/invoices for this client
+  await prisma.contract.updateMany({
+    where: {
+      clientId: null,
+      OR: [
+        { clientEmail: { equals: client.email, mode: 'insensitive' } },
+        { clientName: { equals: client.name, mode: 'insensitive' } },
+      ],
+    },
+    data: { clientId: client.id },
+  })
+  await prisma.invoice.updateMany({
+    where: {
+      clientId: null,
+      OR: [
+        { clientEmail: { equals: client.email, mode: 'insensitive' } },
+        { clientName: { equals: client.name, mode: 'insensitive' } },
+      ],
+    },
+    data: { clientId: client.id },
   })
 
   return NextResponse.json(client)

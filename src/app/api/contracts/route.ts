@@ -56,6 +56,19 @@ export async function POST(req: Request) {
   }
 
   try {
+    // Resolve clientId from email or name
+    const matchedClient = await prisma.client.findFirst({
+      where: {
+        OR: [
+          body.client.email
+            ? { email: { equals: body.client.email, mode: 'insensitive' } }
+            : undefined,
+          { name: { equals: body.client.name, mode: 'insensitive' } },
+        ].filter(Boolean) as object[],
+      },
+    })
+    const clientId = matchedClient?.id ?? null
+
     const saved = await prisma.contract.upsert({
       where: { contractCode: body.contractCode },
       create: {
@@ -69,6 +82,7 @@ export async function POST(req: Request) {
         deliverables: body.deliverables || null,
         phaseStart: body.phaseStart || null,
         phaseEnd: body.phaseEnd || null,
+        clientId,
         clientName: body.client.name,
         clientCompany: body.client.company || null,
         clientEmail: body.client.email || null,
@@ -99,6 +113,7 @@ export async function POST(req: Request) {
         deliverables: body.deliverables || null,
         phaseStart: body.phaseStart || null,
         phaseEnd: body.phaseEnd || null,
+        clientId,
         clientName: body.client.name,
         clientCompany: body.client.company || null,
         clientEmail: body.client.email || null,

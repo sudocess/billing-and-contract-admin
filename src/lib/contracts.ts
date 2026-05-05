@@ -36,8 +36,6 @@ export type KnownClient = {
   type: string
   phases: { label: string; status: ClientPhaseStatus }[]
   currentPhase: number
-  contracts: number
-  invoices: number
   clientCode: string
   // Optional contact / legal details (Dutch B2B contract requirements)
   company?: string
@@ -65,8 +63,6 @@ export const KNOWN_CLIENTS: KnownClient[] = [
       { label: 'Phase 3', status: 'upcoming' },
     ],
     currentPhase: 2,
-    contracts: 2,
-    invoices: 1,
     clientCode: '8832104',
     company: 'De Laat Studio',
     phone: '+31 6 12 34 56 78',
@@ -81,8 +77,6 @@ export const KNOWN_CLIENTS: KnownClient[] = [
     type: 'Custom Agreement',
     phases: [{ label: 'Phase 1', status: 'signed' }],
     currentPhase: 1,
-    contracts: 1,
-    invoices: 0,
     clientCode: '5541290',
     phone: '+31 6 87 65 43 21',
     city: 'Den Bosch',
@@ -142,8 +136,6 @@ export function upsertKnownClient(updates: Partial<KnownClient> & { name: string
     type: 'New client',
     phases: [],
     currentPhase: 0,
-    contracts: 0,
-    invoices: 0,
     clientCode: String(Math.floor(1000000 + Math.random() * 9000000)),
     ...cleaned,
   }

@@ -13,6 +13,8 @@ import {
   type LanguageKey,
   type KnownClient,
 } from '@/lib/contracts'
+
+type ApiClient = KnownClient & { contracts?: number; invoices?: number }
 import { generateContractHtml, type PreviewData, type Hosting } from '@/lib/contractHtml'
 // Re-export PreviewData so other files can continue importing it from here
 export type { PreviewData } from '@/lib/contractHtml'
@@ -150,7 +152,7 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
   const [saveStatus, setSaveStatus] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   // ── Custom autocomplete for client name ──
-  const [knownClients, setKnownClients] = useState<KnownClient[]>([])
+  const [knownClients, setKnownClients] = useState<ApiClient[]>([])
   const [nameFocused, setNameFocused] = useState(false)
   const clientNameRef = useRef<HTMLDivElement | null>(null)
 
@@ -240,7 +242,7 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
   const contractId = useMemo(() => {
     if (editingCode) return editingCode
     const code = matchedClient?.clientCode ?? '0000000'
-    const phaseIndex = matchedClient ? matchedClient.contracts + 1 : 1
+    const phaseIndex = matchedClient ? (matchedClient.contracts ?? 0) + 1 : 1
     return nextContractId(code, phaseIndex)
   }, [matchedClient, editingCode])
 

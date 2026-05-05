@@ -16,6 +16,67 @@ enum InvoiceStatus {
   CANCELLED
 }
 
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  NO_SHOW
+  RESCHEDULED
+}
+
+enum Platform {
+  GOOGLE_MEET
+  WHATSAPP_VIDEO
+  DIRECT_PHONE_CALL
+  MICROSOFT_TEAMS
+}
+
+model Appointment {
+  id                Int               @id @default(autoincrement())
+  createdAt         DateTime          @default(now())
+  customerName      String
+  customerEmail     String
+  whatsappNumber    String
+  platform          Platform          @default(GOOGLE_MEET)
+  scheduledAt       DateTime
+  durationMinutes   Int               @default(30)
+  timezone          String            @default("Europe/Amsterdam")
+  googleEventId     String?
+  googleMeetLink    String?
+  submissionId      Int?
+  submissionUuid    String?           @db.Uuid
+  planName          String?
+  lang              String            @default("en")
+  status            AppointmentStatus @default(PENDING)
+  adminNotes        String?
+  reminderSent      Boolean           @default(false)
+  reminder24hSentAt DateTime?
+  reminder1hSentAt  DateTime?
+  rescheduleCount   Int               @default(0)
+  submissions       submissions?      @relation(fields: [submissionUuid], references: [id])
+
+  @@index([submissionUuid])
+}
+
+model BlockedDate {
+  id        Int      @id @default(autoincrement())
+  date      DateTime @unique @db.Date
+  createdAt DateTime @default(now())
+}
+
+model submissions {
+  id             String        @id @db.Uuid
+  submitted_at   DateTime?     @db.Timestamptz(6)
+  customer_name  String?
+  customer_email String?
+  plan           String?
+  lang           String?
+  answers        Json?
+  price_summary  Json?
+  Appointment    Appointment[]
+}
+
 model Invoice {
   id             String        @id @default(uuid())
   invoiceNumber  String        @unique
@@ -68,10 +129,15 @@ model Invoice {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
+  // Client relation (NEW)
+  clientId       String?
+  client         Client?       @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
   // Relations
   items          InvoiceItem[]
 
   @@map("invoices")
+  @@index([clientId])
 }
 
 model InvoiceItem {
@@ -107,6 +173,7 @@ enum ContractStatus {
   DRAFT
   PENDING
   SIGNED
+  SUPERSEDED
   CANCELLED
 }
 
@@ -126,7 +193,11 @@ model Contract {
   phaseStart       String?
   phaseEnd         String?
 
-  // Client snapshot
+  // Client relation (NEW) — nullable so legacy rows don't fail the migration
+  clientId         String?
+  client           Client?        @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  // Client snapshot (kept for audit even after the relation exists)
   clientName       String
   clientCompany    String?
   clientEmail      String?
@@ -147,13 +218,26 @@ model Contract {
   p3               Float          @default(0)
   tier2Rate        Float          @default(0)
 
-  // Full preview snapshot (hosting, addons, etc.)
   data             Json
 
-  signingToken         String?   @unique
+  signingToken          String?   @unique
   signingTokenExpiresAt DateTime?
-  signerName           String?
-  signerIp             String?
+  signerName            String?
+  signerIp              String?
+
+  // Supersede chain — replaces a previous contract (plan-tier change)
+  supersedesId     String?        @unique
+  supersedes       Contract?      @relation("Supersession", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersededBy     Contract?      @relation("Supersession")
+
+  // Change-order chain — adds scope to a parent contract (extra app, new module)
+  parentContractId String?
+  parentContract   Contract?      @relation("ChangeOrder", fields: [parentContractId], references: [id], onDelete: SetNull)
+  changeOrders     Contract[]     @relation("ChangeOrder")
+
+  // Archive + audit-trail note
+  archivedAt       DateTime?
+  versionNote      String?
 
   signedAt         DateTime?
   sentAt           DateTime?
@@ -161,19 +245,19 @@ model Contract {
   updatedAt        DateTime       @updatedAt
 
   @@map("contracts")
+  @@index([clientId])
+  @@index([parentContractId])
 }
 
 model Client {
-  id             String   @id @default(uuid())
+  id             String     @id @default(uuid())
   name           String
   initials       String
-  email          String   @default("")
-  type           String   @default("New client")
-  currentPhase   Int      @default(0)
-  contracts      Int      @default(0)
-  invoices       Int      @default(0)
-  clientCode     String   @unique
-  phases         Json     @default("[]")
+  email          String     @default("")
+  type           String     @default("New client")
+  currentPhase   Int        @default(0)
+  clientCode     String     @unique
+  phases         Json       @default("[]")
   company        String?
   phone          String?
   kvk            String?
@@ -184,8 +268,12 @@ model Client {
   country        String?
   dedicatedEmail String?
   password       String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  // Relations (NEW) — replaces the dropped contracts/invoices Int columns
+  contracts      Contract[]
+  invoices       Invoice[]
 
   @@map("clients")
 }

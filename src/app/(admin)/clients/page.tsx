@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import type { KnownClient } from '@/lib/contracts'
 
+type ApiClient = KnownClient & { contracts: number; invoices: number }
+
 type DraftClient = {
   clientCode: string
   firstName: string
@@ -49,7 +51,7 @@ type View =
   | { mode: 'form'; formMode: 'add' | 'edit'; original?: string }
 
 export default function ClientsPage() {
-  const [clients, setClients] = useState<KnownClient[]>([])
+  const [clients, setClients] = useState<ApiClient[]>([])
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState<View>({ mode: 'list' })
   const [draft, setDraft] = useState<DraftClient>(EMPTY_DRAFT)
@@ -75,7 +77,7 @@ export default function ClientsPage() {
     setView({ mode: 'form', formMode: 'add' })
     if (typeof window !== 'undefined') window.scrollTo({ top: 0 })
   }
-  function openEdit(c: KnownClient) {
+  function openEdit(c: ApiClient) {
     const { firstName, lastName } = splitName(c.name)
     setDraft({
       clientCode: c.clientCode,
