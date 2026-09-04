@@ -57,7 +57,7 @@ const PROVIDER = {
   country: 'Netherlands',
   email: 'info@engaginguxdesign.com',
   legalEmail: 'legal@engaginguxdesign.com',
-  phone: '+31 6 17 60 24 41',
+  phone: '+31 6 12 92 23 16',
   website: 'engaginguxdesign.com',
   kvk: 'KvK registered',
   vat: 'VAT-registered (NL)',

@@ -87,7 +87,7 @@ export default function InvoicePreview({ invoice }: { invoice: InvoiceData }) {
               <div className="text-[0.78rem] text-white/60 leading-relaxed mt-1.5">
                 engaginguxdesign.com<br />
                 info@engaginguxdesign.com<br />
-                +31 6 17 60 24 41<br />
+                +31 6 12 92 23 16<br />
                 {invoice.ownVat && <>{t.vatNo}: {invoice.ownVat}<br /></>}
                 {invoice.ownKvk && <>{t.kvk}: {invoice.ownKvk}</>}
               </div>
@@ -213,7 +213,7 @@ export default function InvoicePreview({ invoice }: { invoice: InvoiceData }) {
         {/* Footer */}
         <div className="inv-footer">
           <strong className="text-brown-dark">Engaging UX Design</strong>
-          {' · engaginguxdesign.com · info@engaginguxdesign.com · +31 6 17 60 24 41'}
+          {' · engaginguxdesign.com · info@engaginguxdesign.com · +31 6 12 92 23 16'}
           {invoice.ownVat && ` · ${t.vatNo}: ${invoice.ownVat}`}
         </div>
       </div>
