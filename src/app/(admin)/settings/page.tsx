@@ -16,8 +16,8 @@ export default async function SettingsPage() {
         </div>
         <h1 className="font-heading text-3xl font-black text-brown-dark mb-1">Settings</h1>
         <p className="text-sm text-brown-muted">
-          Manage your admin email, password, and recovery codes. All changes require your current
-          password and a 2FA code.
+          Manage your admin email, password, and trusted browsers. Changing your email or
+          password requires your current password and a code emailed to you.
         </p>
       </header>
       <SettingsClient currentEmail={user?.email ?? ''} />

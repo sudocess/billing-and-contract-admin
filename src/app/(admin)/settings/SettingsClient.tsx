@@ -1,8 +1,17 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 type Banner = { type: 'success' | 'error'; text: string } | null
+
+type TrustedDevice = {
+  id: string
+  label: string
+  createdAt: string
+  lastUsedAt: string
+  expiresAt: string
+  isCurrent: boolean
+}
 
 export default function SettingsClient({ currentEmail }: { currentEmail: string }) {
   // Shared re-auth fields
@@ -66,14 +75,118 @@ export default function SettingsClient({ currentEmail }: { currentEmail: string 
   const [savingAccount, setSavingAccount] = useState(false)
   const [accountBanner, setAccountBanner] = useState<Banner>(null)
 
-  // Recovery codes
-  const [regenLoading, setRegenLoading] = useState(false)
-  const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null)
-  const [recoveryBanner, setRecoveryBanner] = useState<Banner>(null)
+  // Emailed re-auth code
+  const [sendingCode, setSendingCode] = useState(false)
+  const [codeCooldown, setCodeCooldown] = useState(0)
+
+  // Trusted browsers
+  const [devices, setDevices] = useState<TrustedDevice[] | null>(null)
+  const [trustDays, setTrustDays] = useState(30)
+  const [maxDevices, setMaxDevices] = useState(5)
+  const [deviceBanner, setDeviceBanner] = useState<Banner>(null)
+  const [busyDeviceId, setBusyDeviceId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (codeCooldown <= 0) return
+    const t = setTimeout(() => setCodeCooldown((c) => c - 1), 1000)
+    return () => clearTimeout(t)
+  }, [codeCooldown])
+
+  const loadDevices = useCallback(() => {
+    fetch('/api/auth/devices')
+      .then((r) => r.json())
+      .then((d) => {
+        setDevices(d.devices ?? [])
+        if (typeof d.trustDays === 'number') setTrustDays(d.trustDays)
+        if (typeof d.maxDevices === 'number') setMaxDevices(d.maxDevices)
+      })
+      .catch(() => setDevices([]))
+  }, [])
+
+  useEffect(() => {
+    loadDevices()
+  }, [loadDevices])
 
   function clearReauth() {
     setCurrentPassword('')
     setCode('')
+  }
+
+  async function sendReauthCode() {
+    if (codeCooldown > 0 || sendingCode) return
+    setSendingCode(true)
+    setAccountBanner(null)
+    try {
+      const res = await fetch('/api/auth/reauth-code', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) {
+        if (typeof data.retryAfter === 'number') setCodeCooldown(data.retryAfter)
+        throw new Error(data.error || 'Could not send the code')
+      }
+      setCodeCooldown(60)
+      setAccountBanner({
+        type: 'success',
+        text: `Code sent to ${currentEmail}. It expires in ${data.expiresInMinutes} minutes.`,
+      })
+    } catch (err) {
+      setAccountBanner({
+        type: 'error',
+        text: err instanceof Error ? err.message : 'Could not send the code',
+      })
+    } finally {
+      setSendingCode(false)
+    }
+  }
+
+  async function revokeDevice(deviceId: string) {
+    setBusyDeviceId(deviceId)
+    setDeviceBanner(null)
+    try {
+      const res = await fetch('/api/auth/devices', {
+        method: 'DELETE',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ deviceId }),
+      })
+      if (!res.ok) throw new Error('Could not forget that browser')
+      setDeviceBanner({
+        type: 'success',
+        text: 'Browser forgotten. It will need an emailed code next time.',
+      })
+      loadDevices()
+    } catch (err) {
+      setDeviceBanner({
+        type: 'error',
+        text: err instanceof Error ? err.message : 'Could not forget that browser',
+      })
+    } finally {
+      setBusyDeviceId(null)
+    }
+  }
+
+  async function revokeAllDevices() {
+    if (
+      !confirm(
+        'Sign out everywhere and forget every browser, including this one?\n\nYou will need your password and a fresh emailed code to get back in.'
+      )
+    ) {
+      return
+    }
+    setBusyDeviceId('__all__')
+    try {
+      const res = await fetch('/api/auth/devices', {
+        method: 'DELETE',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ all: true }),
+      })
+      if (!res.ok) throw new Error('Could not revoke')
+      window.location.href = '/login'
+    } catch (err) {
+      setDeviceBanner({
+        type: 'error',
+        text: err instanceof Error ? err.message : 'Could not revoke',
+      })
+      setBusyDeviceId(null)
+    }
   }
 
   async function saveAccount(e: React.FormEvent) {
@@ -96,7 +209,7 @@ export default function SettingsClient({ currentEmail }: { currentEmail: string 
       return
     }
     if (!currentPassword || !code) {
-      setAccountBanner({ type: 'error', text: 'Re-enter your current password and 2FA code.' })
+      setAccountBanner({ type: 'error', text: 'Re-enter your current password and the emailed code.' })
       return
     }
 
@@ -135,47 +248,6 @@ export default function SettingsClient({ currentEmail }: { currentEmail: string 
     } finally {
       setSavingAccount(false)
     }
-  }
-
-  async function regenerate(e: React.FormEvent) {
-    e.preventDefault()
-    setRecoveryBanner(null)
-    setRecoveryCodes(null)
-    if (!currentPassword || !code) {
-      setRecoveryBanner({
-        type: 'error',
-        text: 'Enter your current password and 2FA code below first.',
-      })
-      return
-    }
-    setRegenLoading(true)
-    try {
-      const res = await fetch('/api/auth/recovery-codes', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ currentPassword, code }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Regeneration failed')
-      setRecoveryCodes(data.recoveryCodes as string[])
-      setRecoveryBanner({
-        type: 'success',
-        text: 'New codes generated. Save them now — they will not be shown again.',
-      })
-      clearReauth()
-    } catch (err) {
-      setRecoveryBanner({
-        type: 'error',
-        text: err instanceof Error ? err.message : 'Regeneration failed',
-      })
-    } finally {
-      setRegenLoading(false)
-    }
-  }
-
-  function copyCodes() {
-    if (!recoveryCodes) return
-    navigator.clipboard.writeText(recoveryCodes.join('\n'))
   }
 
   return (
@@ -263,6 +335,9 @@ export default function SettingsClient({ currentEmail }: { currentEmail: string 
             setCurrentPassword={setCurrentPassword}
             code={code}
             setCode={setCode}
+            onSendCode={sendReauthCode}
+            sending={sendingCode}
+            cooldown={codeCooldown}
           />
 
           {accountBanner && <Banner banner={accountBanner} />}
@@ -279,61 +354,79 @@ export default function SettingsClient({ currentEmail }: { currentEmail: string 
         </form>
       </section>
 
-      {/* ── Section 2: Recovery codes ── */}
+      {/* ── Section 2: Trusted browsers ── */}
       <section className="bg-white border border-brown-light rounded-2xl p-6 shadow-sm">
-        <h2 className="font-heading text-lg font-bold text-brown-dark mb-1">Recovery codes</h2>
+        <h2 className="font-heading text-lg font-bold text-brown-dark mb-1">Trusted browsers</h2>
         <p className="text-xs text-brown-subtle mb-5">
-          Each code is single-use. Regenerating invalidates all unused codes and replaces them with
-          a fresh batch of 10. Save them in your password manager — they will not be shown again.
+          These browsers can sign in with your email and password alone, without an emailed code.
+          Trust lasts {trustDays} days and is never extended — each one will ask for a code again
+          when it lapses. Up to {maxDevices} browsers are kept; the least recently used is
+          dropped after that.
         </p>
 
-        {recoveryCodes && (
-          <div className="mb-5 p-4 rounded-xl bg-brown-pale border border-brown-rust/30">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-xs font-semibold uppercase tracking-wider text-brown-rust">
-                Your new recovery codes
-              </div>
-              <button
-                type="button"
-                onClick={copyCodes}
-                className="text-xs font-semibold text-brown-rust hover:text-brown-dark underline underline-offset-2"
-              >
-                Copy all
-              </button>
-            </div>
-            <div className="grid grid-cols-2 gap-2 font-mono text-sm text-brown-dark">
-              {recoveryCodes.map((c) => (
-                <div key={c} className="px-3 py-2 rounded-md bg-white border border-brown-light">
-                  {c}
-                </div>
-              ))}
-            </div>
+        {deviceBanner && (
+          <div className="mb-4">
+            <Banner banner={deviceBanner} />
           </div>
         )}
 
-        <form onSubmit={regenerate} className="grid gap-4">
-          <ReauthBlock
-            currentPassword={currentPassword}
-            setCurrentPassword={setCurrentPassword}
-            code={code}
-            setCode={setCode}
-          />
+        {devices === null ? (
+          <p className="text-sm text-brown-subtle py-3">Loading…</p>
+        ) : devices.length === 0 ? (
+          <p className="text-sm text-brown-subtle py-3">
+            No trusted browsers. Every sign-in will ask for an emailed code.
+          </p>
+        ) : (
+          <ul className="divide-y divide-brown-light border-y border-brown-light mb-5">
+            {devices.map((d) => (
+              <li key={d.id} className="flex items-center justify-between gap-4 py-3">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-brown-dark flex items-center gap-2 flex-wrap">
+                    {d.label}
+                    {d.isCurrent && (
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-brown-rust/15 text-brown-rust">
+                        This browser
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[11px] text-brown-subtle mt-0.5">
+                    Last used {formatWhen(d.lastUsedAt)} · trust ends {formatWhen(d.expiresAt)}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => revokeDevice(d.id)}
+                  disabled={busyDeviceId !== null}
+                  className="shrink-0 text-xs font-semibold text-brown-rust hover:text-brown-dark underline underline-offset-2 disabled:opacity-40"
+                >
+                  {busyDeviceId === d.id ? 'Removing…' : 'Forget'}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
 
-          {recoveryBanner && <Banner banner={recoveryBanner} />}
-
-          <div className="flex justify-end">
-            <button
-              type="submit"
-              disabled={regenLoading}
-              className="px-5 py-2.5 rounded-lg bg-brown-dark hover:bg-brown-mid text-brown-pale font-semibold transition-colors disabled:opacity-50 text-sm"
-            >
-              {regenLoading ? 'Generating…' : 'Generate new recovery codes'}
-            </button>
-          </div>
-        </form>
+        <div className="flex justify-end pt-1">
+          <button
+            type="button"
+            onClick={revokeAllDevices}
+            disabled={busyDeviceId !== null}
+            className="px-5 py-2.5 rounded-lg bg-brown-dark hover:bg-brown-mid text-brown-pale font-semibold transition-colors disabled:opacity-50 text-sm"
+          >
+            {busyDeviceId === '__all__' ? 'Signing out…' : 'Sign out everywhere'}
+          </button>
+        </div>
+        <p className="text-[11px] text-brown-subtle mt-2 text-right">
+          Forgets every browser and ends every active session, including this one.
+        </p>
       </section>
     </div>
   )
+}
+
+function formatWhen(value: string | Date): string {
+  const d = typeof value === 'string' ? new Date(value) : value
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
 function Field({
@@ -361,11 +454,17 @@ function ReauthBlock({
   setCurrentPassword,
   code,
   setCode,
+  onSendCode,
+  sending,
+  cooldown,
 }: {
   currentPassword: string
   setCurrentPassword: (v: string) => void
   code: string
   setCode: (v: string) => void
+  onSendCode: () => void
+  sending: boolean
+  cooldown: number
 }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-brown-light">
@@ -378,17 +477,34 @@ function ReauthBlock({
           placeholder="••••••••••"
         />
       </Field>
-      <Field label="2FA or recovery code">
-        <input
-          type="text"
-          inputMode="text"
-          value={code}
-          onChange={(e) => setCode(e.target.value)}
-          autoComplete="one-time-code"
-          placeholder="000000"
-          className="font-mono tracking-[0.2em]"
-        />
-      </Field>
+      <div className="block">
+        <span className="block text-xs font-bold uppercase tracking-wider text-brown-muted mb-1.5">
+          Emailed code
+        </span>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            inputMode="numeric"
+            maxLength={6}
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            autoComplete="one-time-code"
+            placeholder="000000"
+            className="font-mono tracking-[0.2em] flex-1 min-w-0"
+          />
+          <button
+            type="button"
+            onClick={onSendCode}
+            disabled={sending || cooldown > 0}
+            className="shrink-0 px-3 rounded-lg border border-brown-rust/40 text-brown-rust hover:bg-brown-rust/10 text-xs font-semibold transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+          >
+            {cooldown > 0 ? `${cooldown}s` : sending ? 'Sending…' : 'Send code'}
+          </button>
+        </div>
+        <span className="block text-[11px] text-brown-subtle mt-1">
+          Sent to your admin email. Valid for 10 minutes.
+        </span>
+      </div>
     </div>
   )
 }

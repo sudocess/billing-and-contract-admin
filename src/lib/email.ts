@@ -4,6 +4,9 @@ const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: Number(process.env.SMTP_PORT) || 587,
   secure: Number(process.env.SMTP_PORT) === 465,
+  // On 587 nodemailer will otherwise fall back to plaintext if STARTTLS fails. This
+  // channel now carries login codes, so refuse to send rather than send in the clear.
+  requireTLS: Number(process.env.SMTP_PORT) !== 465,
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
@@ -80,7 +83,7 @@ function buildEmailWrapper(invoiceBody: string, personalMessage: string): string
 <tr><td style="padding:20px 32px;border-top:1px solid rgba(59,33,16,0.1);">
   <div style="font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#7a5a40;line-height:1.6;">
     <strong style="color:#3b2110;">Engaging UX Design</strong><br>
-    engaginguxdesign.com · info@engaginguxdesign.com · +31 6 17 60 24 41
+    engaginguxdesign.com · info@engaginguxdesign.com · +31 6 12 92 23 16
   </div>
 </td></tr>
 
@@ -182,7 +185,7 @@ export async function sendSignedConfirmationToClient(opts: SendSignedConfirmatio
 <tr><td style="padding:20px 32px;border-top:1px solid rgba(59,33,16,0.1);">
   <div style="font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#7a5a40;line-height:1.6;">
     <strong style="color:#3b2110;">Engaging UX Design</strong><br>
-    engaginguxdesign.com · info@engaginguxdesign.com · +31 6 17 60 24 41
+    engaginguxdesign.com · info@engaginguxdesign.com · +31 6 12 92 23 16
   </div>
 </td></tr>
 </table>
@@ -367,7 +370,7 @@ ${personalMessage ? `<!-- Personal message -->
 <tr><td style="padding:20px 32px;border-top:1px solid rgba(59,33,16,0.1);">
   <div style="font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#7a5a40;line-height:1.6;">
     <strong style="color:#3b2110;">Engaging UX Design</strong><br>
-    engaginguxdesign.com · info@engaginguxdesign.com · +31 6 17 60 24 41
+    engaginguxdesign.com · info@engaginguxdesign.com · +31 6 12 92 23 16
   </div>
 </td></tr>
 
@@ -376,4 +379,168 @@ ${personalMessage ? `<!-- Personal message -->
 </td></tr>
 </table>
 </body></html>`
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+   Admin login code
+   ──────────────────────────────────────────────────────────────────────────── */
+
+interface SendLoginCodeOptions {
+  to: string
+  code: string
+  ttlMinutes: number
+  device: string
+}
+
+/**
+ * Second factor for the admin panel. Deliberately plain: no tracking pixel, no
+ * click-through link, nothing that could be phished into a one-click approval.
+ */
+export async function sendLoginCodeEmail(opts: SendLoginCodeOptions) {
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM || 'Engaging UX Design <info@engaginguxdesign.com>',
+    to: opts.to,
+    subject: `${opts.code} is your Engaging UX Design login code`,
+    text: [
+      `Your login code is ${opts.code}`,
+      '',
+      `It expires in ${opts.ttlMinutes} minutes and can only be used once.`,
+      `Requested from: ${opts.device}`,
+      '',
+      'If you did not try to sign in, someone knows your password — change it immediately.',
+    ].join('\n'),
+    html: buildLoginCodeEmail(opts),
+  })
+}
+
+function buildLoginCodeEmail(opts: SendLoginCodeOptions): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f0e8de;font-family:Helvetica,Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0e8de;padding:32px 0;">
+<tr><td align="center">
+
+<table width="600" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(28,16,8,0.08);">
+
+<!-- Header -->
+<tr><td style="background:#3b2110;padding:28px 32px;">
+  <div style="font-family:Helvetica,Arial,sans-serif;font-size:18px;font-weight:bold;color:#f7ede2;letter-spacing:0.02em;">Engaging UX Design</div>
+  <div style="font-family:Helvetica,Arial,sans-serif;font-size:12px;color:rgba(247,237,226,0.6);margin-top:2px;">Billing &amp; Contract Admin</div>
+</td></tr>
+
+<!-- Code -->
+<tr><td style="padding:32px 32px 8px;" align="center">
+  <div style="font-family:Helvetica,Arial,sans-serif;font-size:14px;color:#3b2110;line-height:1.65;">Your login code:</div>
+  <div style="font-family:'Courier New',Courier,monospace;font-size:38px;font-weight:bold;letter-spacing:0.32em;color:#3b2110;background:#f7ede2;border:1px solid rgba(59,33,16,0.12);border-radius:10px;padding:18px 12px 18px 24px;margin:16px 0 8px;">${escapeHtml(opts.code)}</div>
+  <div style="font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#7a5a40;">Expires in ${opts.ttlMinutes} minutes · single use</div>
+</td></tr>
+
+<!-- Context -->
+<tr><td style="padding:16px 32px;">
+  <div style="font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#7a5a40;line-height:1.6;background:#f7ede2;border-radius:8px;padding:14px 18px;">
+    <strong style="color:#3b2110;">Requested from:</strong> ${escapeHtml(opts.device)}
+  </div>
+</td></tr>
+
+<!-- Warning -->
+<tr><td style="padding:8px 32px 24px;">
+  <div style="font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#7a5a40;background:#fff3e0;border-left:3px solid #b5590a;padding:10px 14px;border-radius:0 6px 6px 0;line-height:1.6;">
+    Didn't try to sign in? Then someone has your password. Change it as soon as you can — this code alone will not let them in.
+  </div>
+</td></tr>
+
+<!-- Footer -->
+<tr><td style="padding:20px 32px;border-top:1px solid rgba(59,33,16,0.1);">
+  <div style="font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#7a5a40;line-height:1.6;">
+    <strong style="color:#3b2110;">Engaging UX Design</strong><br>
+    engaginguxdesign.com · info@engaginguxdesign.com
+  </div>
+</td></tr>
+
+</table>
+
+</td></tr>
+</table>
+</body></html>`
+}
+
+interface SendNewDeviceAlertOptions {
+  to: string
+  device: string
+  trustDays: number
+}
+
+/**
+ * Sent whenever a browser is newly trusted. This is the only signal the owner gets
+ * that someone has opened a password-only window, so it is deliberately not optional.
+ */
+export async function sendNewDeviceAlertEmail(opts: SendNewDeviceAlertOptions) {
+  const when = new Date().toLocaleString('en-GB', {
+    dateStyle: 'full',
+    timeStyle: 'short',
+    timeZone: 'Europe/Amsterdam',
+  })
+
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM || 'Engaging UX Design <info@engaginguxdesign.com>',
+    to: opts.to,
+    subject: 'New browser trusted on your admin account',
+    text: [
+      `A new browser was just trusted on your Billing & Contract Admin account.`,
+      '',
+      `Browser: ${opts.device}`,
+      `When:    ${when} (Amsterdam)`,
+      '',
+      `For the next ${opts.trustDays} days that browser can sign in with your email and password alone, without an emailed code.`,
+      '',
+      `If this was not you, open Settings and use "Sign out everywhere" immediately, then change your password.`,
+    ].join('\n'),
+    html: `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f0e8de;font-family:Helvetica,Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0e8de;padding:32px 0;">
+<tr><td align="center">
+
+<table width="600" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(28,16,8,0.08);">
+
+<tr><td style="background:#3b2110;padding:28px 32px;">
+  <div style="font-family:Helvetica,Arial,sans-serif;font-size:18px;font-weight:bold;color:#f7ede2;letter-spacing:0.02em;">Engaging UX Design</div>
+  <div style="font-family:Helvetica,Arial,sans-serif;font-size:12px;color:rgba(247,237,226,0.6);margin-top:2px;">Security notice</div>
+</td></tr>
+
+<tr><td style="padding:28px 32px 8px;">
+  <div style="font-family:Helvetica,Arial,sans-serif;font-size:15px;font-weight:bold;color:#3b2110;margin-bottom:10px;">A new browser was trusted on your account</div>
+  <div style="font-family:Helvetica,Arial,sans-serif;font-size:14px;color:#3b2110;line-height:1.65;">
+    For the next ${opts.trustDays} days it can sign in with your email and password alone — no emailed code.
+  </div>
+</td></tr>
+
+<tr><td style="padding:16px 32px;">
+  <div style="font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#7a5a40;line-height:1.8;background:#f7ede2;border-radius:8px;padding:16px 20px;">
+    <strong style="color:#3b2110;">Browser:</strong> ${escapeHtml(opts.device)}<br>
+    <strong style="color:#3b2110;">When:</strong> ${escapeHtml(when)} (Amsterdam)
+  </div>
+</td></tr>
+
+<tr><td style="padding:8px 32px 24px;">
+  <div style="font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#7a5a40;background:#fff3e0;border-left:3px solid #b5590a;padding:10px 14px;border-radius:0 6px 6px 0;line-height:1.6;">
+    <strong style="color:#3b2110;">Wasn't you?</strong> Open Settings → Trusted browsers and choose <em>Sign out everywhere</em>, then change your password. Someone else knows it.
+  </div>
+</td></tr>
+
+<tr><td style="padding:20px 32px;border-top:1px solid rgba(59,33,16,0.1);">
+  <div style="font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#7a5a40;line-height:1.6;">
+    <strong style="color:#3b2110;">Engaging UX Design</strong><br>
+    engaginguxdesign.com · info@engaginguxdesign.com
+  </div>
+</td></tr>
+
+</table>
+
+</td></tr>
+</table>
+</body></html>`,
+  })
 }

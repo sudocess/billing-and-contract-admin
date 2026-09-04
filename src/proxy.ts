@@ -5,11 +5,22 @@ import { jwtVerify } from 'jose'
 const SESSION_COOKIE = 'invoice_admin_session'
 
 const PUBLIC_PATHS = ['/login', '/setup']
-const PUBLIC_API_PREFIXES = ['/api/auth/', '/api/sign/']
+
+// Only the endpoints that must work without a session. /api/auth/ as a whole used to be
+// public, which would have exposed the newer device-management and re-auth endpoints;
+// those now sit behind this gate as well as their own readSession() check.
+const PUBLIC_APIS = [
+  '/api/auth/login',
+  '/api/auth/request-code',
+  '/api/auth/setup',
+  '/api/auth/logout',
+]
+const PUBLIC_API_PREFIXES = ['/api/sign/']
 const PUBLIC_PATH_PREFIXES = ['/contract-view/', '/sign/']
 
 function isPublicPath(pathname: string): boolean {
   if (PUBLIC_PATHS.includes(pathname)) return true
+  if (PUBLIC_APIS.includes(pathname)) return true
   if (PUBLIC_API_PREFIXES.some((p) => pathname.startsWith(p))) return true
   if (PUBLIC_PATH_PREFIXES.some((p) => pathname.startsWith(p))) return true
   return false
