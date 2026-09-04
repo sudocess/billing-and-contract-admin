@@ -424,7 +424,7 @@ ${includePrintScript ? '<button class="toolbar" onclick="window.print()">Save as
             Eenmanszaak (sole proprietorship)<br>
             Eindhoven, Netherlands<br>
             info@engaginguxdesign.com<br>
-            +31 6 17 60 24 41<br>
+            +31 6 12 92 23 16<br>
             <span class="muted">KvK registered · VAT-registered (NL)</span>
           </div>
         </div>

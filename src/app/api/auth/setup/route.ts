@@ -2,23 +2,31 @@ import { NextResponse } from 'next/server'
 import {
   adminUserExists,
   createSession,
-  generateRecoveryCodes,
   hashPassword,
-  hashRecoveryCodes,
   setSessionCookie,
-  verifyTotp,
+  trustCurrentDevice,
 } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
+/**
+ * First-run setup. There is no authenticator app to enrol any more — the second factor
+ * is a code emailed at sign-in — so this only captures the email and password, then
+ * trusts the browser that did the setup.
+ */
 export async function POST(req: Request) {
   if (await adminUserExists()) {
     return NextResponse.json({ error: 'Setup already completed' }, { status: 400 })
   }
 
-  const { email, password, secret, totpCode } = await req.json()
+  const { email, password } = await req.json()
 
-  if (!email || !password || !secret || !totpCode) {
-    return NextResponse.json({ error: 'All fields are required' }, { status: 400 })
+  if (!email || !password) {
+    return NextResponse.json({ error: 'Email and password are required' }, { status: 400 })
+  }
+
+  const cleanEmail = String(email).toLowerCase().trim()
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+    return NextResponse.json({ error: 'Invalid email format' }, { status: 400 })
   }
 
   if (typeof password !== 'string' || password.length < 12) {
@@ -28,28 +36,15 @@ export async function POST(req: Request) {
     )
   }
 
-  if (!(await verifyTotp(totpCode, secret))) {
-    return NextResponse.json(
-      { error: 'Invalid 2FA code. Make sure your phone time is correct.' },
-      { status: 400 }
-    )
-  }
-
-  const passwordHash = await hashPassword(password)
-  const recoveryCodes = generateRecoveryCodes(10)
-  const recoveryHashes = await hashRecoveryCodes(recoveryCodes)
-
   const user = await prisma.adminUser.create({
     data: {
-      email: email.toLowerCase().trim(),
-      passwordHash,
-      totpSecret: secret,
-      recoveryCodes: recoveryHashes,
+      email: cleanEmail,
+      passwordHash: await hashPassword(password),
     },
   })
 
-  const token = await createSession({ userId: user.id, email: user.email })
-  await setSessionCookie(token)
+  await trustCurrentDevice(user.id)
+  await setSessionCookie(await createSession({ userId: user.id, email: user.email }))
 
-  return NextResponse.json({ recoveryCodes })
+  return NextResponse.json({ ok: true, email: user.email })
 }

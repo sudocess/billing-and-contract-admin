@@ -1,19 +1,19 @@
 import { NextResponse } from 'next/server'
 import {
-  consumeRecoveryCode,
   hashPassword,
   isLocked,
   readSession,
   registerFailedAttempt,
   resetFailedAttempts,
+  verifyLoginCode,
   verifyPassword,
-  verifyTotp,
 } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
 /**
  * Update the admin account: email and/or password.
- * Requires re-authentication via current password + TOTP/recovery code.
+ * Requires the current password plus a freshly emailed code (POST /api/auth/reauth-code),
+ * so a stolen session cookie alone cannot take the account over.
  */
 export async function POST(req: Request) {
   const session = await readSession()
@@ -21,11 +21,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   }
 
-  const { currentPassword, code, newEmail, newPassword } = await req.json()
+  const body = await req.json().catch(() => null)
+  if (!body || typeof body !== 'object') {
+    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
+  }
+  const { currentPassword, code, newEmail, newPassword } = body as Record<string, unknown>
 
   if (!currentPassword || !code) {
     return NextResponse.json(
-      { error: 'Current password and 2FA / recovery code are required' },
+      { error: 'Current password and an emailed code are required' },
       { status: 400 },
     )
   }
@@ -50,22 +54,23 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Account locked. Try again later.' }, { status: 423 })
   }
 
-  const passwordOk = await verifyPassword(currentPassword, user.passwordHash)
-  if (!passwordOk) {
+  if (!(await verifyPassword(String(currentPassword), user.passwordHash))) {
     await registerFailedAttempt(user.id)
     return NextResponse.json({ error: 'Invalid current password' }, { status: 401 })
   }
 
-  const cleaned = String(code).trim()
-  let codeOk = false
-  if (/^\d{6}$/.test(cleaned.replace(/\s/g, ''))) {
-    codeOk = await verifyTotp(cleaned, user.totpSecret)
-  } else {
-    codeOk = await consumeRecoveryCode(user.id, cleaned, user.recoveryCodes)
-  }
-  if (!codeOk) {
+  const result = await verifyLoginCode(user.id, String(code), user)
+  if (result !== 'ok') {
     await registerFailedAttempt(user.id)
-    return NextResponse.json({ error: 'Invalid 2FA or recovery code' }, { status: 401 })
+    const message =
+      result === 'expired'
+        ? 'That code has expired. Send yourself a new one.'
+        : result === 'too-many-attempts'
+          ? 'Too many incorrect codes. Send yourself a new one.'
+          : result === 'no-code'
+            ? 'No code is outstanding. Send yourself one first.'
+            : 'That code is not correct.'
+    return NextResponse.json({ error: message, reason: result }, { status: 401 })
   }
 
   const data: { email?: string; passwordHash?: string } = {}

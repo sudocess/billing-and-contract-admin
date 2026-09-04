@@ -27,13 +27,18 @@ export async function POST(
     })
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { id, createdAt, updatedAt, contractCode, ...rest } = old
+    const { id, createdAt, updatedAt, contractCode, installments, ...rest } = old
 
     const created = await tx.contract.create({
       data: {
         ...rest,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         data: rest.data as any,
+        // Nullable Json can't be handed a bare `null` on create — Prisma wants
+        // DbNull or the field omitted. Omitting it lets the column default to null,
+        // and a schedule that does exist carries forward to the new version.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...(installments === null ? {} : { installments: installments as any }),
         contractCode: newCode,
         status: 'DRAFT',
         signedAt: null,

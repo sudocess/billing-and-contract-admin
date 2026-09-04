@@ -83,7 +83,7 @@ export async function generateInvoicePdf(invoice: PdfInvoice): Promise<Buffer> {
     const contactStartY = hasSvgLogo || hasPngLogo ? 72 : 52
     doc.font('Helvetica').fontSize(8).fillColor('#c4b5a5')
       .text('engaginguxdesign.com', margin, contactStartY)
-      .text('info@engaginguxdesign.com · +31 6 17 60 24 41', margin, contactStartY + 10)
+      .text('info@engaginguxdesign.com · +31 6 12 92 23 16', margin, contactStartY + 10)
     if (invoice.ownVat) doc.text(`${t.vatNo}: ${invoice.ownVat}`, margin, contactStartY + 20)
     if (invoice.ownKvk) doc.text(`${t.kvk}: ${invoice.ownKvk}`, margin, contactStartY + 30)
 
@@ -255,7 +255,7 @@ export async function generateInvoicePdf(invoice: PdfInvoice): Promise<Buffer> {
     doc.font('Helvetica-Bold').fontSize(8).fillColor('#1c1008')
       .text('Engaging UX Design', margin, footerY + 8, { continued: true })
     doc.font('Helvetica').fontSize(7.5).fillColor('#7a5a40')
-      .text('  ·  engaginguxdesign.com  ·  info@engaginguxdesign.com  ·  +31 6 17 60 24 41')
+      .text('  ·  engaginguxdesign.com  ·  info@engaginguxdesign.com  ·  +31 6 12 92 23 16')
 
     doc.end()
   })

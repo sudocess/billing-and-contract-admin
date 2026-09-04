@@ -158,15 +158,53 @@ model AdminUser {
   id              String   @id @default(uuid())
   email           String   @unique
   passwordHash    String
-  totpSecret      String
+
+  // Deprecated — the authenticator app + printed recovery codes were replaced by
+  // emailed one-time login codes. Columns kept so the migration stays additive;
+  // nothing reads them any more.
+  totpSecret      String?
   recoveryCodes   String[] @default([])
+
+  // Emailed one-time login code (second factor)
+  loginCodeHash      String?
+  loginCodeExpiresAt DateTime?
+  loginCodeAttempts  Int       @default(0)
+  loginCodeSentAt    DateTime?
+
+  // Bumped when all devices are revoked — invalidates every session JWT issued
+  // before this moment, since the JWTs themselves are stateless.
+  sessionsValidFrom DateTime @default(now())
+
   failedAttempts  Int      @default(0)
   lockedUntil     DateTime?
   lastLoginAt     DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  trustedDevices  TrustedDevice[]
+
   @@map("admin_users")
+}
+
+/// A browser that has already passed an emailed login code. While a matching
+/// unexpired row exists, that browser signs in with email + password alone.
+/// Hard 30-day expiry from issuance — never extended — so a code is genuinely
+/// required every 30 days even on a browser in daily use.
+model TrustedDevice {
+  id         String    @id @default(uuid())
+  userId     String
+  user       AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// sha256 of the random 32-byte cookie value. The raw token is never stored.
+  tokenHash  String    @unique
+  label      String    @default("Unknown browser")
+
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime  @default(now())
+  expiresAt  DateTime
+
+  @@map("trusted_devices")
+  @@index([userId])
 }
 
 enum ContractStatus {
@@ -213,10 +251,16 @@ model Contract {
   // Pricing
   totalValue       Float          @default(0)
   initFee          Float          @default(0)
+  /// Legacy fixed 30/40/30 split. Still written and still rendered for contracts
+  /// that have no `installments` schedule, so older contracts are unchanged.
   p1               Float          @default(0)
   p2               Float          @default(0)
   p3               Float          @default(0)
   tier2Rate        Float          @default(0)
+
+  /// Variable-length payment schedule: { credits[], instalments[] }, all net of VAT.
+  /// When present it replaces the p1/p2/p3 rendering entirely. See src/lib/installments.ts.
+  installments     Json?
 
   data             Json
 
