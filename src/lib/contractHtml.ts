@@ -2,6 +2,7 @@
 // Keep this file free of browser-only APIs.
 
 import type { ContractType, PhaseKey } from './contracts'
+import { computeSchedule, fmtDueDate, fmtEuro, type PaymentSchedule } from './installments'
 
 export type Hosting = 'both' | 'hosting' | 'none'
 
@@ -23,6 +24,8 @@ export type PreviewData = {
   pricing: {
     total: number; initFee: number; p1: number; p2: number; p3: number; tier2Rate: number
   }
+  /** Variable-length payment schedule. When present it replaces the p1/p2/p3 table. */
+  schedule?: PaymentSchedule | null
   hosting: { mode: Hosting; domainPrice: number; hostingPrice: number; clientHostingNote?: string }
   addons: {
     seo: { on: boolean; price: number }
@@ -90,7 +93,42 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
   // ── Section 4: payment rows ──────────────────────────────────────────
   let paymentRows = ''
   let paymentNote = ''
-  if (isCustom) {
+  const schedule = data.schedule ?? null
+
+  if (schedule && schedule.instalments.length > 0) {
+    // Explicit schedule. Credits are printed as their own rows rather than netted
+    // off silently, so the Amount column adds up to the stated total on the page.
+    const c = computeSchedule(schedule)
+
+    const creditRows = c.credits
+      .map(r => {
+        const why = [r.note, r.dueDate ? fmtDueDate(r.dueDate) : ''].filter(Boolean).join(' · ')
+        return `<tr><td>${esc(r.label)}</td><td>${esc(why || 'Already settled')}</td><td class="amount">${fmt(r.amount)}</td></tr>`
+      })
+      .join('')
+
+    const termRows = c.instalments
+      .map(r => {
+        const when = r.dueDate ? `Due ${fmtDueDate(r.dueDate)}` : ''
+        const detail = [r.note, when].filter(Boolean).join(' · ')
+        // Net sits in the Amount column so it reconciles with the excl.-VAT total;
+        // the gross is shown alongside because that is what actually gets transferred.
+        return `<tr><td>${esc(r.label)}</td><td>${esc(detail)}${detail ? ' — ' : ''}${fmtEuro(r.gross)} incl. VAT</td><td class="amount">${fmt(r.amount)}</td></tr>`
+      })
+      .join('')
+
+    paymentRows = creditRows + termRows
+
+    const vatLine =
+      c.vatRate > 0
+        ? ` VAT at ${c.vatRate}% adds ${fmtEuro(c.totalVat)}, so ${fmtEuro(c.totalGross)} remains payable across ${c.instalments.length} instalments.`
+        : ''
+    paymentNote =
+      `Amounts shown are exclusive of VAT.${vatLine}` +
+      (c.creditsNet > 0
+        ? ` ${fmtEuro(c.creditsNet)} has already been invoiced and is listed above for completeness — it is not payable again.`
+        : '')
+  } else if (isCustom) {
     paymentRows = `
       <tr><td>Payment 1 (30%)</td><td>Due before work begins</td><td class="amount">${fmt(data.pricing.p1)}</td></tr>
       <tr><td>Payment 2 (40%)</td><td>Due at agreed midpoint</td><td class="amount">${fmt(data.pricing.p2)}</td></tr>
