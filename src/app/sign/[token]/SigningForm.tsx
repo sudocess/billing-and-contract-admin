@@ -82,7 +82,10 @@ export default function SigningForm({
             type="checkbox"
             checked={agreed}
             onChange={e => setAgreed(e.target.checked)}
-            className="mt-0.5 h-4 w-4 rounded accent-[#1c1008] cursor-pointer"
+            // ! overrides globals.css `input { width: 100% }`, which is unlayered and so
+            // outranks Tailwind utilities — otherwise this box stretches to the full
+            // width and collapses the consent text beside it.
+            className="mt-0.5 !h-4 !w-4 shrink-0 rounded accent-[#1c1008] cursor-pointer"
           />
           <span className="text-sm text-[#3b2110] leading-snug min-w-0 break-words">
             I have read and agree to all terms in this Service Agreement, including the{' '}
