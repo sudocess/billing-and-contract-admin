@@ -176,6 +176,19 @@ export default function ViewContractPage() {
             status={contract.status}
             clientEmail={contract.dedicatedEmail || contract.clientEmail || ''}
           />
+          {/* Shown for anything ever signed, including cancelled contracts — the
+              signed document stays retrievable regardless of the contract's status.
+              The route explains itself if the contract predates PDF storage. */}
+          {contract.signedAt && (
+            <a
+              href={`/api/contracts/${encodeURIComponent(contract.contractCode)}/signed-pdf`}
+              className="btn btn-ghost btn-sm"
+              title="Download the exact PDF the client signed"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Signed PDF</span>
+            </a>
+          )}
           <SendContractDialog
             contractCode={contract.contractCode}
             defaultTo={contract.dedicatedEmail || contract.clientEmail || ''}
