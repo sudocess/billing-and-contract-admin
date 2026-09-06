@@ -264,14 +264,22 @@ export default function LoginClient({ next }: { next: string }) {
               />
             </div>
 
-            <label className="flex items-start gap-2.5 cursor-pointer select-none">
+            {/*
+              globals.css styles bare `input` with width:100% and bare `label` with
+              uppercase + bold, both unlayered — and unlayered CSS outranks Tailwind's
+              @layer utilities. Without the ! overrides the checkbox stretches to the
+              full card width, squeezing this text into a one-character column that
+              overflows the card, in shouty caps. Same conflict the `!text-white` in
+              labelClass above works around.
+            */}
+            <label className="flex items-start gap-2.5 cursor-pointer select-none !normal-case !tracking-normal !font-normal">
               <input
                 type="checkbox"
                 checked={rememberDevice}
                 onChange={(e) => setRememberDevice(e.target.checked)}
-                className="mt-0.5 w-4 h-4 accent-[#b5590a] shrink-0"
+                className="mt-0.5 !w-4 !h-4 accent-[#b5590a] shrink-0 cursor-pointer"
               />
-              <span className="text-xs !text-brown-pale/80 leading-relaxed">
+              <span className="text-xs !text-brown-pale/80 leading-relaxed min-w-0 break-words">
                 Remember this browser for 30 days
                 <span className="block text-brown-pale/50 text-[11px]">
                   Skip the code on this device until the 30 days are up. Leave off on a shared computer.

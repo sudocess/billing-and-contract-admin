@@ -16,6 +16,23 @@ import {
 
 type ApiClient = KnownClient & { contracts?: number; invoices?: number }
 import { generateContractHtml, type PreviewData, type Hosting } from '@/lib/contractHtml'
+import {
+  buildMonthlyInstalments,
+  computeSchedule,
+  DEFAULT_VAT_RATE,
+  endOfMonth,
+  fmtDueDate,
+  fmtEuro,
+  fromCents,
+  MAX_INSTALMENTS,
+  relabel,
+  sumRows,
+  toCents,
+  type DateAnchor,
+  type PaymentSchedule,
+  type ScheduleMode,
+  type ScheduleRow,
+} from '@/lib/installments'
 // Re-export PreviewData so other files can continue importing it from here
 export type { PreviewData } from '@/lib/contractHtml'
 
@@ -125,6 +142,18 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
   // ── Step 4 ──
   const [totalVal, setTotalVal] = useState<string>('')
   const [initFee, setInitFee] = useState<string>('')
+
+  // ── Step 4: payment schedule ──
+  // 'phases' keeps the original 30/40/30 milestone split. 'monthly' produces N dated
+  // terms, with anything already paid or invoiced listed as its own credit row so the
+  // printed table sums to the contract total instead of quietly falling short.
+  const [scheduleMode, setScheduleMode] = useState<ScheduleMode>('phases')
+  const [termCount, setTermCount] = useState<string>('5')
+  const [firstDueDate, setFirstDueDate] = useState<string>('')
+  const [dateAnchor, setDateAnchor] = useState<DateAnchor>('end-of-month')
+  const [vatRate, setVatRate] = useState<string>(String(DEFAULT_VAT_RATE))
+  const [credits, setCredits] = useState<ScheduleRow[]>([])
+  const [instalments, setInstalments] = useState<ScheduleRow[]>([])
 
   // ── Step 5 ──
   const [tier2Rate, setTier2Rate] = useState<string>('')
@@ -277,6 +306,17 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step])
 
+  // ─────────── Step 4: seed the first due date when switching to monthly ───────────
+  useEffect(() => {
+    if (scheduleMode !== 'monthly') return
+    if (!firstDueDate) {
+      setFirstDueDate(endOfMonth(new Date().toISOString().slice(0, 10)))
+      return
+    }
+    if (instalments.length === 0) regenerateTerms()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scheduleMode, firstDueDate])
+
   // ─────────── Step 5 default tier 2 rate by plan ───────────
   useEffect(() => {
     if (step === 5 && tier2Rate === '') {
@@ -308,6 +348,58 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
     p2: total * 0.40,
     p3: total * 0.30,
     total,
+  }
+
+  /* ── Payment schedule (step 4, 'monthly' mode) ────────────────────────── */
+
+  const creditsNet = sumRows(credits)
+  const remainingNet = fromCents(toCents(total) - toCents(creditsNet))
+
+  const schedule: PaymentSchedule = useMemo(
+    () => ({
+      mode: scheduleMode,
+      vatRate: parseFloat(vatRate) || 0,
+      intervalMonths: 1,
+      credits,
+      instalments,
+    }),
+    [scheduleMode, vatRate, credits, instalments],
+  )
+  const computed = useMemo(() => computeSchedule(schedule), [schedule])
+
+  // The printed table has to account for every euro of the contract value. Continue
+  // stays locked until it does — this is the check that makes the old "three rows
+  // totalling €2,389 under a stated €2,499" impossible to send to a client.
+  const scheduledNet = sumRows(instalments)
+  const scheduleBalanced =
+    toCents(creditsNet) + toCents(scheduledNet) === toCents(total)
+  const scheduleShortfall = fromCents(
+    toCents(total) - toCents(creditsNet) - toCents(scheduledNet),
+  )
+
+  function regenerateTerms(
+    count = parseInt(termCount) || 1,
+    start = firstDueDate,
+    anchor = dateAnchor,
+  ) {
+    setInstalments(buildMonthlyInstalments(remainingNet, count, start || null, 1, anchor))
+  }
+
+  function updateRow(
+    kind: 'credit' | 'instalment',
+    index: number,
+    patch: Partial<ScheduleRow>,
+  ) {
+    const setter = kind === 'credit' ? setCredits : setInstalments
+    setter(rows => rows.map((r, i) => (i === index ? { ...r, ...patch } : r)))
+  }
+
+  function removeRow(kind: 'credit' | 'instalment', index: number) {
+    if (kind === 'credit') {
+      setCredits(rows => rows.filter((_, i) => i !== index))
+    } else {
+      setInstalments(rows => relabel(rows.filter((_, i) => i !== index)))
+    }
   }
 
   const tier2Available = phase === 'phase2' || phase === 'phase3'
@@ -354,7 +446,13 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
 
   const skipRevisions = phase === 'phase1'
 
+  // A monthly schedule whose rows don't account for the full contract value must not
+  // reach the client — that mismatch is what produced a printed table of €2,389 under
+  // a stated total of €2,499.
+  const blockedOnSchedule = step === 4 && scheduleMode === 'monthly' && !scheduleBalanced
+
   function next() {
+    if (blockedOnSchedule) return
     if (step === 1) persistClientIfNeeded()
     if (step < 7) setStep(s => (s === 4 && skipRevisions) ? 6 : s + 1)
   }
@@ -430,6 +528,9 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
       p3: breakdown.p3,
       tier2Rate: parseFloat(tier2Rate) || PLANS[effectivePlan].rate,
     },
+    // Only carried when the admin actually chose monthly terms; leaving it null keeps
+    // every existing contract rendering through the legacy p1/p2/p3 path.
+    schedule: scheduleMode === 'monthly' ? schedule : null,
     hosting: {
       mode: hosting,
       domainPrice: parseFloat(domainPrice) || 0,
@@ -666,13 +767,186 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
               </Field>
             </div>
 
-            <div className="breakdown-card">
-              <BreakdownRow label="Phase 1 (30%) — before work starts" value={fmtEur(breakdown.p1)} />
-              <BreakdownRow label="Initiation fee deducted" value={initial > 0 ? '\u2212 €' + fmtPlain(initial) : '—'} />
-              <BreakdownRow label="Phase 2 (40%) — after Phase 2 approval" value={fmtEur(breakdown.p2)} />
-              <BreakdownRow label="Phase 3 (30%) — before publishing" value={fmtEur(breakdown.p3)} />
-              <BreakdownRow label="Total (excl. VAT)" value={fmtEur(breakdown.total)} bold />
+            <div className="mb-4">
+              <span className="block text-xs font-bold uppercase tracking-wider text-brown-muted mb-2">
+                Payment schedule
+              </span>
+              <div className="inline-flex rounded-lg border border-brown-light overflow-hidden">
+                {([
+                  { key: 'phases' as const, label: 'By phase', sub: '30 / 40 / 30' },
+                  { key: 'monthly' as const, label: 'Monthly terms', sub: 'Fixed instalments' },
+                ]).map(opt => (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => setScheduleMode(opt.key)}
+                    className={`px-4 py-2 text-sm font-semibold transition-colors ${
+                      scheduleMode === opt.key
+                        ? 'bg-brown-rust text-brown-pale'
+                        : 'bg-white text-brown-muted hover:bg-brown-pale/40'
+                    }`}
+                  >
+                    {opt.label}
+                    <span className="block text-[10px] font-normal opacity-70">{opt.sub}</span>
+                  </button>
+                ))}
+              </div>
             </div>
+
+            {scheduleMode === 'phases' ? (
+              <div className="breakdown-card">
+                <BreakdownRow label="Phase 1 (30%) — before work starts" value={fmtEur(breakdown.p1)} />
+                <BreakdownRow label="Initiation fee deducted" value={initial > 0 ? '\u2212 €' + fmtPlain(initial) : '—'} />
+                <BreakdownRow label="Phase 2 (40%) — after Phase 2 approval" value={fmtEur(breakdown.p2)} />
+                <BreakdownRow label="Phase 3 (30%) — before publishing" value={fmtEur(breakdown.p3)} />
+                <BreakdownRow label="Total (excl. VAT)" value={fmtEur(breakdown.total)} bold />
+              </div>
+            ) : (
+              <div className="space-y-5">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 items-end">
+                  <Field label="Terms">
+                    <input type="number" min={1} max={MAX_INSTALMENTS} value={termCount}
+                      onChange={e => setTermCount(e.target.value)} />
+                  </Field>
+                  <Field label="First due">
+                    <input type="date" value={firstDueDate}
+                      onChange={e => setFirstDueDate(e.target.value)} />
+                  </Field>
+                  <Field label="Then">
+                    <select value={dateAnchor} onChange={e => setDateAnchor(e.target.value as DateAnchor)}>
+                      <option value="end-of-month">End of month</option>
+                      <option value="same-day">Same day monthly</option>
+                    </select>
+                  </Field>
+                  <Field label="VAT %">
+                    <input type="number" step="0.1" min={0} value={vatRate}
+                      onChange={e => setVatRate(e.target.value)} />
+                  </Field>
+                  <button type="button" onClick={() => regenerateTerms()}
+                    className="btn btn-ghost btn-sm h-[38px]"
+                    title="Rebuild the terms, splitting the remaining balance evenly">
+                    Split evenly
+                  </button>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-brown-muted">
+                      Already paid / invoiced
+                    </span>
+                    <button type="button"
+                      onClick={() => setCredits(rows => [...rows, { label: 'Paid — invoice ', note: '', amount: 0, dueDate: null }])}
+                      className="text-xs font-semibold text-brown-rust hover:text-brown-dark underline underline-offset-2">
+                      + Add
+                    </button>
+                  </div>
+                  {credits.length === 0 ? (
+                    <p className="text-xs text-brown-subtle">
+                      Nothing deducted. Add a row for anything already invoiced, so the table below still sums to the contract total.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {credits.map((r, i) => (
+                        <div key={i} className="grid grid-cols-12 gap-2 items-center">
+                          <input className="col-span-5" placeholder="Paid — invoice 2026-00105" value={r.label}
+                            onChange={e => updateRow('credit', i, { label: e.target.value })} />
+                          <input className="col-span-4" placeholder="What it covered" value={r.note}
+                            onChange={e => updateRow('credit', i, { note: e.target.value })} />
+                          <input type="number" step="0.01" className="col-span-2 text-right" value={r.amount || ''}
+                            onChange={e => updateRow('credit', i, { amount: parseFloat(e.target.value) || 0 })} />
+                          <button type="button" onClick={() => removeRow('credit', i)}
+                            className="col-span-1 text-brown-subtle hover:text-red-600 text-sm" aria-label="Remove">✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <div className="text-xs font-bold uppercase tracking-wider text-brown-muted mb-2">
+                    Terms — {fmtEuro(remainingNet)} remaining
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm min-w-[640px]">
+                      <thead>
+                        <tr className="text-[10px] uppercase tracking-wider text-brown-muted border-b border-brown-light">
+                          <th className="text-left py-2 font-bold">Term</th>
+                          <th className="text-left py-2 font-bold">Condition</th>
+                          <th className="text-left py-2 font-bold">Due</th>
+                          <th className="text-right py-2 font-bold">Net</th>
+                          <th className="text-right py-2 font-bold">VAT</th>
+                          <th className="text-right py-2 font-bold">Gross</th>
+                          <th />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {computed.instalments.map((r, i) => (
+                          <tr key={i} className="border-b border-brown-light/60">
+                            <td className="py-1.5 pr-2 text-brown-dark whitespace-nowrap">{r.label}</td>
+                            <td className="py-1.5 pr-2">
+                              <input className="w-full" placeholder="—" value={r.note}
+                                onChange={e => updateRow('instalment', i, { note: e.target.value })} />
+                            </td>
+                            <td className="py-1.5 pr-2">
+                              <input type="date" className="w-full" value={r.dueDate ?? ''}
+                                onChange={e => updateRow('instalment', i, { dueDate: e.target.value || null })} />
+                            </td>
+                            <td className="py-1.5 pr-2">
+                              <input type="number" step="0.01" className="w-24 text-right" value={r.amount || ''}
+                                onChange={e => updateRow('instalment', i, { amount: parseFloat(e.target.value) || 0 })} />
+                            </td>
+                            <td className="py-1.5 pr-2 text-right text-brown-muted whitespace-nowrap">{fmtEuro(r.vat)}</td>
+                            <td className="py-1.5 pr-2 text-right text-brown-dark font-semibold whitespace-nowrap">{fmtEuro(r.gross)}</td>
+                            <td className="py-1.5 text-right">
+                              <button type="button" onClick={() => removeRow('instalment', i)}
+                                className="text-brown-subtle hover:text-red-600" aria-label="Remove">✕</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot className="text-brown-dark">
+                        <tr className="border-t-2 border-brown-dark/15">
+                          <td className="py-2 font-semibold" colSpan={3}>Scheduled across {computed.instalments.length} terms</td>
+                          <td className="py-2 text-right font-semibold">{fmtEuro(computed.scheduledNet)}</td>
+                          <td className="py-2 text-right font-semibold">{fmtEuro(computed.totalVat)}</td>
+                          <td className="py-2 text-right font-semibold">{fmtEuro(computed.totalGross)}</td>
+                          <td />
+                        </tr>
+                        <tr>
+                          <td className="py-1 text-brown-muted" colSpan={3}>Already paid / invoiced</td>
+                          <td className="py-1 text-right text-brown-muted">{fmtEuro(computed.creditsNet)}</td>
+                          <td colSpan={3} />
+                        </tr>
+                        <tr>
+                          <td className="py-1 font-bold" colSpan={3}>Total project value (excl. VAT)</td>
+                          <td className="py-1 text-right font-bold">{fmtEuro(computed.totalNet)}</td>
+                          <td colSpan={3} />
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+
+                <div className={`px-3 py-2 rounded-md text-sm border ${
+                  scheduleBalanced
+                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700'
+                    : 'bg-red-500/10 border-red-500/30 text-red-700'
+                }`}>
+                  {scheduleBalanced ? (
+                    <>Schedule balances — rows total {fmtEuro(total)}, matching the project value.</>
+                  ) : (
+                    <>
+                      Rows total {fmtEuro(creditsNet + scheduledNet)} against a project value of {fmtEuro(total)}
+                      {' — '}
+                      {scheduleShortfall > 0
+                        ? `${fmtEuro(scheduleShortfall)} unaccounted for.`
+                        : `${fmtEuro(-scheduleShortfall)} over.`}
+                      {' Adjust before continuing.'}
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -942,7 +1216,13 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
         <div className="wizard-footer">
           <button type="button" className="btn btn-ghost" onClick={prev} disabled={step === 1}>← Back</button>
           {step < 7 ? (
-            <button type="button" className="btn btn-primary" onClick={next}>Continue →</button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={next}
+              disabled={blockedOnSchedule}
+              title={blockedOnSchedule ? 'The payment schedule must account for the full project value' : undefined}
+            >Continue →</button>
           ) : (
             <div className="flex items-center gap-2">
               {saveStatus && (

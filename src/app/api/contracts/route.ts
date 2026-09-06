@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { readSession } from '@/lib/auth'
+import { parseSchedule } from '@/lib/installments'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,6 +39,8 @@ interface SaveContractBody {
   }
   // Full preview snapshot (hosting, addons, etc.)
   data: unknown
+  // Variable-length payment schedule; null/absent means the legacy p1/p2/p3 split.
+  schedule?: unknown
 }
 
 export async function POST(req: Request) {
@@ -45,6 +48,7 @@ export async function POST(req: Request) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   let body: SaveContractBody
+
   try {
     body = (await req.json()) as SaveContractBody
   } catch {
@@ -54,6 +58,10 @@ export async function POST(req: Request) {
   if (!body.contractCode || !body.client?.name) {
     return NextResponse.json({ error: 'contractCode and client.name are required' }, { status: 400 })
   }
+
+  // Narrowed rather than trusted: a malformed schedule would print a payment table
+  // that does not reconcile.
+  const schedule = parseSchedule(body.schedule)
 
   try {
     // Resolve clientId from email or name
@@ -102,6 +110,8 @@ export async function POST(req: Request) {
         tier2Rate: body.pricing.tier2Rate || 0,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         data: body.data as any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...(schedule ? { installments: schedule as any } : {}),
       },
       update: {
         contractType: body.contractType,
@@ -133,6 +143,8 @@ export async function POST(req: Request) {
         tier2Rate: body.pricing.tier2Rate || 0,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         data: body.data as any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...(schedule ? { installments: schedule as any } : {}),
       },
     })
     return NextResponse.json({ ok: true, id: saved.id, contractCode: saved.contractCode })
