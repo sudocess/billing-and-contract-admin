@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import fs from 'fs'
 import path from 'path'
-import { randomUUID } from 'crypto'
+import { createHash, randomUUID } from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { generateContractHtml, type PreviewData } from '@/lib/contractHtml'
 import { htmlToPdf } from '@/lib/htmlToPdf'
@@ -77,7 +77,12 @@ export async function POST(
   })
   const pdfBuffer = await htmlToPdf(html)
 
-  // Mark contract as signed and clear the token
+  // Mark contract as signed, clear the token, and keep the document itself.
+  //
+  // This PDF used to be generated, emailed and dropped. That is how two of Leemar's
+  // signed agreements became unrecoverable: the contract row was later edited, and
+  // nothing anywhere still held what had actually been signed. Storing it alongside
+  // the audit fields means the record survives any later edit to the contract.
   await prisma.contract.update({
     where: { id: contract.id },
     data: {
@@ -87,6 +92,12 @@ export async function POST(
       signerIp: ip,
       signingToken: null,
       signingTokenExpiresAt: null,
+      // Copied into a plain Uint8Array: Prisma's Bytes expects one backed by an
+      // ArrayBuffer, which Node's Buffer does not guarantee.
+      signedPdf: new Uint8Array(pdfBuffer),
+      signedPdfSha256: createHash('sha256').update(pdfBuffer).digest('hex'),
+      signedPdfSize: pdfBuffer.length,
+      signingReference,
     },
   })
 

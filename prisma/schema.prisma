@@ -269,6 +269,18 @@ model Contract {
   signerName            String?
   signerIp              String?
 
+  /// The exact PDF the client was sent at signing. Previously this was rendered in
+  /// memory, emailed and discarded, so editing a signed contract destroyed the only
+  /// record of what was actually agreed. Stored in-row so the document and its audit
+  /// trail are backed up and restored together.
+  signedPdf             Bytes?
+  /// SHA-256 of signedPdf — lets the stored file be proven byte-identical to the
+  /// copy the client holds, rather than merely asserted to be.
+  signedPdfSha256       String?
+  signedPdfSize         Int?
+  /// Signing reference embedded in the PDF, for cross-checking against the client copy.
+  signingReference      String?
+
   // Supersede chain — replaces a previous contract (plan-tier change)
   supersedesId     String?        @unique
   supersedes       Contract?      @relation("Supersession", fields: [supersedesId], references: [id], onDelete: SetNull)
