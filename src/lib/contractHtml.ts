@@ -26,6 +26,13 @@ export type PreviewData = {
   }
   /** Variable-length payment schedule. When present it replaces the p1/p2/p3 table. */
   schedule?: PaymentSchedule | null
+  /**
+   * Registration numbers as they stood when this contract was written, captured into
+   * the snapshot rather than read live. A contract must state what was true at the
+   * moment it was signed — re-rendering last year's agreement should not retroactively
+   * claim a registration obtained since. Empty values omit the line entirely.
+   */
+  owner?: { kvk?: string; vat?: string }
   hosting: { mode: Hosting; domainPrice: number; hostingPrice: number; clientHostingNote?: string }
   addons: {
     seo: { on: boolean; price: number }
@@ -49,6 +56,25 @@ export interface GenerateHtmlOptions {
 
 const esc = (s: unknown) =>
   String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+/**
+ * Renders "KvK 12345678 · BTW NL123456789B01" from whatever is actually held.
+ *
+ * Previously this was the fixed string "KvK registered · VAT-registered (NL)",
+ * printed on every contract regardless of whether either registration existed.
+ * Asserting a registration you do not hold is not a cosmetic problem on a document
+ * a client signs, so the line now renders only from real values and disappears
+ * when there are none.
+ */
+function ownerRegistrationLine(owner?: { kvk?: string; vat?: string }): string {
+  const parts: string[] = []
+  const kvk = owner?.kvk?.trim()
+  const vat = owner?.vat?.trim()
+  if (kvk) parts.push(`KvK ${esc(kvk)}`)
+  if (vat) parts.push(`BTW ${esc(vat)}`)
+  if (parts.length === 0) return ''
+  return `<span class="muted">${parts.join(' &middot; ')}</span>`
+}
 
 const fmt = (v: number) => '€' + v.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 
@@ -463,7 +489,7 @@ ${includePrintScript ? '<button class="toolbar" onclick="window.print()">Save as
             Eindhoven, Netherlands<br>
             info@engaginguxdesign.com<br>
             +31 6 12 92 23 16<br>
-            <span class="muted">KvK registered · VAT-registered (NL)</span>
+            ${ownerRegistrationLine(data.owner)}
           </div>
         </div>
         <div class="party-block">

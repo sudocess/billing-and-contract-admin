@@ -111,6 +111,7 @@ export type WizardPrefill = {
 export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: WizardPrefill; mode?: 'new' | 'edit' } = {}) {
   const router = useRouter()
   const [step, setStep] = useState(1)
+  const [ownerReg, setOwnerReg] = useState<{ kvk: string; vat: string }>({ kvk: '', vat: '' })
   const editingCode = mode === 'edit' && prefill ? prefill.contractCode : null
 
   // ── Step 1: client details ──
@@ -187,6 +188,13 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
 
   useEffect(() => {
     fetch('/api/clients').then(r => r.json()).then(setKnownClients).catch(() => {})
+    // Registration numbers come from Settings, not from a hardcoded claim. Empty
+    // until the KvK and BTW numbers exist, which keeps them off the contract.
+    fetch('/api/settings/owner')
+      .then(r => r.json())
+      .then((o: { ownKvk?: string; ownVat?: string }) =>
+        setOwnerReg({ kvk: o?.ownKvk ?? '', vat: o?.ownVat ?? '' }))
+      .catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -531,6 +539,7 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
     // Only carried when the admin actually chose monthly terms; leaving it null keeps
     // every existing contract rendering through the legacy p1/p2/p3 path.
     schedule: scheduleMode === 'monthly' ? schedule : null,
+    owner: { kvk: ownerReg.kvk, vat: ownerReg.vat },
     hosting: {
       mode: hosting,
       domainPrice: parseFloat(domainPrice) || 0,
@@ -1418,7 +1427,10 @@ export function ContractPreview({ lang, data }: { lang: 'en' | 'nl'; data: Previ
           <div className="text-brown-subtle text-xs">{PROVIDER.legalForm}</div>
           <div>{PROVIDER.address}, {PROVIDER.city}, {PROVIDER.country}</div>
           <div>{PROVIDER.email} · {PROVIDER.phone}</div>
-          <div className="text-xs text-brown-subtle mt-1">{PROVIDER.kvk} · {PROVIDER.vat}</div>
+          <div className="text-xs text-brown-subtle mt-1">
+            {[data.owner?.kvk && `KvK ${data.owner.kvk}`, data.owner?.vat && `BTW ${data.owner.vat}`]
+              .filter(Boolean).join(' · ') || 'No registration numbers set — add them in Settings'}
+          </div>
         </div>
         <div className="party-block">
           <div className="party-label">{t.client}</div>
