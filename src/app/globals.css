@@ -1138,3 +1138,21 @@ select.fi { cursor: pointer; }
   .btn-cancel-nc { flex: 1; text-align: center; }
   .btn-add-nc { flex: 1; justify-content: center; }
 }
+
+/* ── Payment schedule table (contract wizard, step 4) ── */
+
+/* The condition is usually empty in monthly mode — the due date is the condition.
+   Ghosted until hover or focus so 5–24 unused rows don't read as a wall of pale
+   boxes, while staying fully focusable and typeable. */
+.term-condition-input {
+  background: transparent !important;
+  border-color: transparent !important;
+}
+.term-condition-input:hover,
+.term-condition-input:focus {
+  background: var(--color-brown-pale) !important;
+  border-color: rgba(59, 33, 16, 0.12) !important;
+}
+.term-condition-input:focus {
+  border-color: var(--color-brown-rust) !important;
+}

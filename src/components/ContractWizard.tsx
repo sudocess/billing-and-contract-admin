@@ -419,6 +419,13 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
     setInstalments(buildMonthlyInstalments(remainingNet, count, start || null, 1, anchor))
   }
 
+  // `type="number"` sanitises its value and strips trailing zeros, so 254.80 renders
+  // as "254.8" beside a VAT column formatted to two places. Hold the raw string while
+  // a field is focused, and show a two-decimal value the rest of the time.
+  const [amountDraft, setAmountDraft] = useState<{ key: string; value: string } | null>(null)
+  const amountValue = (key: string, amount: number) =>
+    amountDraft?.key === key ? amountDraft.value : amount ? amount.toFixed(2) : ''
+
   function updateRow(
     kind: 'credit' | 'instalment',
     index: number,
@@ -858,7 +865,8 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 items-end">
                   <Field label="Terms">
                     <input type="number" min={1} max={MAX_INSTALMENTS} value={termCount}
-                      onChange={e => setTermCount(e.target.value)} />
+                      onChange={e => setTermCount(e.target.value)}
+                      onWheel={e => (e.target as HTMLInputElement).blur()} />
                   </Field>
                   <Field label="First due">
                     <input type="date" value={firstDueDate}
@@ -872,10 +880,11 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
                   </Field>
                   <Field label="VAT %">
                     <input type="number" step="0.1" min={0} value={vatRate}
-                      onChange={e => setVatRate(e.target.value)} />
+                      onChange={e => setVatRate(e.target.value)}
+                      onWheel={e => (e.target as HTMLInputElement).blur()} />
                   </Field>
                   <button type="button" onClick={() => regenerateTerms()}
-                    className="btn btn-ghost btn-sm h-[38px]"
+                    className="btn btn-ghost btn-sm h-[38px] col-span-2 sm:col-span-1"
                     title="Rebuild the terms, splitting the remaining balance evenly">
                     Split evenly
                   </button>
@@ -901,13 +910,28 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
                       {credits.map((r, i) => (
                         <div key={i} className="grid grid-cols-12 gap-2 items-center">
                           <input className="col-span-5" placeholder="Paid — invoice 2026-00105" value={r.label}
-                            onChange={e => updateRow('credit', i, { label: e.target.value })} />
+                            onChange={e => updateRow('credit', i, { label: e.target.value })}
+                            aria-label="Credit description" />
                           <input className="col-span-4" placeholder="What it covered" value={r.note}
-                            onChange={e => updateRow('credit', i, { note: e.target.value })} />
-                          <input type="number" step="0.01" className="col-span-2 text-right" value={r.amount || ''}
-                            onChange={e => updateRow('credit', i, { amount: parseFloat(e.target.value) || 0 })} />
+                            onChange={e => updateRow('credit', i, { note: e.target.value })}
+                            aria-label="What this credit covered" />
+                          <div className="col-span-2 relative">
+                            <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-brown-subtle">€</span>
+                            <input
+                              type="text" inputMode="decimal"
+                              className="!pl-5 !pr-2 !py-1.5 text-right tabular-nums"
+                              value={amountValue(`credit-${i}`, r.amount)}
+                              onFocus={() => setAmountDraft({ key: `credit-${i}`, value: r.amount ? String(r.amount) : '' })}
+                              onChange={e => {
+                                setAmountDraft({ key: `credit-${i}`, value: e.target.value })
+                                updateRow('credit', i, { amount: parseFloat(e.target.value.replace(',', '.')) || 0 })
+                              }}
+                              onBlur={() => setAmountDraft(null)}
+                              aria-label="Credit amount" />
+                          </div>
                           <button type="button" onClick={() => removeRow('credit', i)}
-                            className="col-span-1 text-brown-subtle hover:text-red-600 text-sm" aria-label="Remove">✕</button>
+                            className="col-span-1 inline-flex items-center justify-center w-8 h-8 rounded-full text-brown-subtle hover:text-red-600 hover:bg-red-50 transition-colors"
+                            aria-label={`Remove credit row ${i + 1}`}>✕</button>
                         </div>
                       ))}
                     </div>
@@ -919,13 +943,27 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
                     Terms — {fmtEuro(remainingNet)} remaining
                   </div>
                   <div className="overflow-x-auto">
-                    <table className="w-full text-sm min-w-[640px]">
+                    {/* table-fixed + colgroup is what stops the sprawl: without a width
+                        contract the browser distributes freely and the unlayered
+                        `input { width: 100% }` rule makes every field fill its cell.
+                        Condition is the only column left undeclared, so it absorbs
+                        whatever space remains instead of competing with Due and Net. */}
+                    <table className="w-full table-fixed text-sm min-w-[760px]">
+                      <colgroup>
+                        <col className="w-20" />
+                        <col />
+                        <col className="w-40" />
+                        <col className="w-28" />
+                        <col className="w-20" />
+                        <col className="w-24" />
+                        <col className="w-10" />
+                      </colgroup>
                       <thead>
                         <tr className="text-[10px] uppercase tracking-wider text-brown-muted border-b border-brown-light">
                           <th className="text-left py-2 font-bold">Term</th>
                           <th className="text-left py-2 font-bold">Condition</th>
                           <th className="text-left py-2 font-bold">Due</th>
-                          <th className="text-right py-2 font-bold">Net</th>
+                          <th className="text-right py-2 font-bold border-l border-brown-light pl-2">Net (€)</th>
                           <th className="text-right py-2 font-bold">VAT</th>
                           <th className="text-right py-2 font-bold">Gross</th>
                           <th />
@@ -936,42 +974,65 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
                           <tr key={i} className="border-b border-brown-light/60">
                             <td className="py-1.5 pr-2 text-brown-dark whitespace-nowrap">{r.label}</td>
                             <td className="py-1.5 pr-2">
-                              <input className="w-full" placeholder="—" value={r.note}
-                                onChange={e => updateRow('instalment', i, { note: e.target.value })} />
+                              <input
+                                className="term-condition-input !w-full !max-w-[280px]"
+                                placeholder="Optional condition"
+                                value={r.note}
+                                onChange={e => updateRow('instalment', i, { note: e.target.value })}
+                                aria-label={`Condition for ${r.label}`} />
                             </td>
                             <td className="py-1.5 pr-2">
-                              <input type="date" className="w-full" value={r.dueDate ?? ''}
-                                onChange={e => updateRow('instalment', i, { dueDate: e.target.value || null })} />
+                              <input
+                                type="date"
+                                className="!w-36 !px-2 !py-1.5 text-sm"
+                                value={r.dueDate ?? ''}
+                                onChange={e => updateRow('instalment', i, { dueDate: e.target.value || null })}
+                                aria-label={`Due date for ${r.label}`} />
                             </td>
-                            <td className="py-1.5 pr-2">
-                              <input type="number" step="0.01" className="w-24 text-right" value={r.amount || ''}
-                                onChange={e => updateRow('instalment', i, { amount: parseFloat(e.target.value) || 0 })} />
+                            <td className="py-1.5 pr-2 border-l border-brown-light/60 pl-2">
+                              <div className="relative">
+                                <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-brown-subtle">€</span>
+                                <input
+                                  type="text" inputMode="decimal"
+                                  className="!w-full !pl-5 !pr-2 !py-1.5 text-right tabular-nums text-sm"
+                                  value={amountValue(`instalment-${i}`, r.amount)}
+                                  onFocus={() => setAmountDraft({ key: `instalment-${i}`, value: r.amount ? String(r.amount) : '' })}
+                                  onChange={e => {
+                                    setAmountDraft({ key: `instalment-${i}`, value: e.target.value })
+                                    updateRow('instalment', i, { amount: parseFloat(e.target.value.replace(',', '.')) || 0 })
+                                  }}
+                                  onBlur={() => setAmountDraft(null)}
+                                  aria-label={`Net amount for ${r.label}`} />
+                              </div>
                             </td>
-                            <td className="py-1.5 pr-2 text-right text-brown-muted whitespace-nowrap">{fmtEuro(r.vat)}</td>
-                            <td className="py-1.5 pr-2 text-right text-brown-dark font-semibold whitespace-nowrap">{fmtEuro(r.gross)}</td>
+                            <td className="py-1.5 pr-2 text-right tabular-nums text-brown-muted whitespace-nowrap">{fmtEuro(r.vat)}</td>
+                            <td className="py-1.5 pr-2 text-right tabular-nums text-brown-dark font-semibold whitespace-nowrap">{fmtEuro(r.gross)}</td>
                             <td className="py-1.5 text-right">
                               <button type="button" onClick={() => removeRow('instalment', i)}
-                                className="text-brown-subtle hover:text-red-600" aria-label="Remove">✕</button>
+                                className="inline-flex items-center justify-center w-8 h-8 rounded-full text-brown-subtle hover:text-red-600 hover:bg-red-50 transition-colors"
+                                aria-label={`Remove term ${i + 1}`}>✕</button>
                             </td>
                           </tr>
                         ))}
                       </tbody>
-                      <tfoot className="text-brown-dark">
+                      <tfoot className="text-brown-dark bg-brown-pale/40">
                         <tr className="border-t-2 border-brown-dark/15">
-                          <td className="py-2 font-semibold" colSpan={3}>Scheduled across {computed.instalments.length} terms</td>
-                          <td className="py-2 text-right font-semibold">{fmtEuro(computed.scheduledNet)}</td>
-                          <td className="py-2 text-right font-semibold">{fmtEuro(computed.totalVat)}</td>
-                          <td className="py-2 text-right font-semibold">{fmtEuro(computed.totalGross)}</td>
+                          <th scope="row" className="text-left py-2 font-semibold" colSpan={3}>
+                            Scheduled across {computed.instalments.length} terms
+                          </th>
+                          <td className="py-2 text-right font-semibold tabular-nums border-l border-brown-light/60 pl-2">{fmtEuro(computed.scheduledNet)}</td>
+                          <td className="py-2 text-right font-semibold tabular-nums">{fmtEuro(computed.totalVat)}</td>
+                          <td className="py-2 text-right font-semibold tabular-nums">{fmtEuro(computed.totalGross)}</td>
                           <td />
                         </tr>
                         <tr>
-                          <td className="py-1 text-brown-muted" colSpan={3}>Already paid / invoiced</td>
-                          <td className="py-1 text-right text-brown-muted">{fmtEuro(computed.creditsNet)}</td>
+                          <th scope="row" className="text-left py-1 font-normal text-brown-muted" colSpan={3}>− Already paid / invoiced</th>
+                          <td className="py-1 text-right text-brown-muted tabular-nums border-l border-brown-light/60 pl-2">{fmtEuro(computed.creditsNet)}</td>
                           <td colSpan={3} />
                         </tr>
                         <tr>
-                          <td className="py-1 font-bold" colSpan={3}>Total project value (excl. VAT)</td>
-                          <td className="py-1 text-right font-bold">{fmtEuro(computed.totalNet)}</td>
+                          <th scope="row" className="text-left py-1.5 font-bold text-base" colSpan={3}>= Total project value (excl. VAT)</th>
+                          <td className="py-1.5 text-right font-bold text-base tabular-nums border-l border-brown-light/60 pl-2">{fmtEuro(computed.totalNet)}</td>
                           <td colSpan={3} />
                         </tr>
                       </tfoot>
