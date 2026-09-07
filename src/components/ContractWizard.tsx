@@ -17,6 +17,7 @@ import {
 type ApiClient = KnownClient & { contracts?: number; invoices?: number }
 import { generateContractHtml, type PreviewData, type Hosting } from '@/lib/contractHtml'
 import {
+  addMonths,
   buildMonthlyInstalments,
   computeSchedule,
   DEFAULT_VAT_RATE,
@@ -325,6 +326,31 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scheduleMode, firstDueDate])
 
+  // Changing the number of terms restructures the whole schedule, so rebuild it.
+  // Guarded on a parsed, in-range count that actually differs, so typing over the
+  // field does not thrash the table on every keystroke.
+  useEffect(() => {
+    if (scheduleMode !== 'monthly') return
+    const n = parseInt(termCount)
+    if (!Number.isFinite(n) || n < 1 || n > MAX_INSTALMENTS) return
+    if (n === instalments.length) return
+    setInstalments(buildMonthlyInstalments(remainingNet, n, firstDueDate || null, 1, dateAnchor))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [termCount, scheduleMode])
+
+  // Changing the start date or the anchor only moves the dates. Amounts and
+  // conditions are left alone, so a hand-edited figure is not silently reset.
+  useEffect(() => {
+    if (scheduleMode !== 'monthly' || !firstDueDate) return
+    setInstalments(rows =>
+      rows.map((r, i) => {
+        const stepped = addMonths(firstDueDate, i)
+        return { ...r, dueDate: dateAnchor === 'end-of-month' ? endOfMonth(stepped) : stepped }
+      }),
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [firstDueDate, dateAnchor, scheduleMode])
+
   // ─────────── Step 5 default tier 2 rate by plan ───────────
   useEffect(() => {
     if (step === 5 && tier2Rate === '') {
@@ -458,9 +484,13 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
   // reach the client — that mismatch is what produced a printed table of €2,389 under
   // a stated total of €2,499.
   const blockedOnSchedule = step === 4 && scheduleMode === 'monthly' && !scheduleBalanced
+  // The scope of work is the substance of the contract — an agreement that reaches a
+  // client with an empty section 3 is worse than no agreement.
+  const blockedOnDeliverables = step === 3 && !deliverables.trim()
+  const blocked = blockedOnSchedule || blockedOnDeliverables
 
   function next() {
-    if (blockedOnSchedule) return
+    if (blocked) return
     if (step === 1) persistClientIfNeeded()
     if (step < 7) setStep(s => (s === 4 && skipRevisions) ? 6 : s + 1)
   }
@@ -741,8 +771,21 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
                 <input value={contractId} readOnly className="contract-id-readonly" />
               </Field>
               <div className="sm:col-span-2">
-                <Field label="Deliverables">
-                  <textarea rows={3} value={deliverables} onChange={e => setDeliverables(e.target.value)} placeholder="Bullet list of what is included in this phase…" />
+                <Field
+                  label="Deliverables *"
+                  hint={
+                    deliverables.trim()
+                      ? 'Start a line with • for a point and - for a detail beneath it. Bare lines become section headings.'
+                      : 'Required — this becomes section 3, Scope of Work, on the contract.'
+                  }
+                >
+                  <textarea
+                    rows={6}
+                    value={deliverables}
+                    onChange={e => setDeliverables(e.target.value)}
+                    placeholder={'• Website design and development\n - Full front-end build, responsive across devices\n• Logo design\n\nAdmin App\n• Private login with an email verification step'}
+                    className={deliverables.trim() ? undefined : '!border-brown-rust/50'}
+                  />
                 </Field>
               </div>
               <Field label="Phase start date">
@@ -1229,8 +1272,14 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
               type="button"
               className="btn btn-primary"
               onClick={next}
-              disabled={blockedOnSchedule}
-              title={blockedOnSchedule ? 'The payment schedule must account for the full project value' : undefined}
+              disabled={blocked}
+              title={
+                blockedOnDeliverables
+                  ? 'Add the deliverables — this becomes section 3 of the contract'
+                  : blockedOnSchedule
+                    ? 'The payment schedule must account for the full project value'
+                    : undefined
+              }
             >Continue →</button>
           ) : (
             <div className="flex items-center gap-2">
@@ -1260,11 +1309,26 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
 /*  Sub-components                                            */
 /* ─────────────────────────────────────────────────────────── */
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string
+  hint?: string
+  children: React.ReactNode
+}) {
   return (
     <label className="block">
       <span className="block mb-1.5">{label}</span>
       {children}
+      {/* normal-case overrides the unlayered `label { text-transform: uppercase }`
+          in globals.css, which the hint would otherwise inherit and shout. */}
+      {hint && (
+        <span className="block text-[11px] !normal-case !tracking-normal !font-normal text-brown-subtle mt-1">
+          {hint}
+        </span>
+      )}
     </label>
   )
 }
