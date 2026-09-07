@@ -909,13 +909,13 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
                     <div className="space-y-2">
                       {credits.map((r, i) => (
                         <div key={i} className="grid grid-cols-12 gap-2 items-center">
-                          <input className="col-span-5" placeholder="Paid — invoice 2026-00105" value={r.label}
+                          <input className="col-span-12 sm:col-span-5" placeholder="Paid — invoice 2026-00105" value={r.label}
                             onChange={e => updateRow('credit', i, { label: e.target.value })}
                             aria-label="Credit description" />
-                          <input className="col-span-4" placeholder="What it covered" value={r.note}
+                          <input className="col-span-12 sm:col-span-4" placeholder="What it covered" value={r.note}
                             onChange={e => updateRow('credit', i, { note: e.target.value })}
                             aria-label="What this credit covered" />
-                          <div className="col-span-2 relative">
+                          <div className="col-span-10 sm:col-span-2 relative">
                             <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-brown-subtle">€</span>
                             <input
                               type="text" inputMode="decimal"
@@ -930,7 +930,7 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
                               aria-label="Credit amount" />
                           </div>
                           <button type="button" onClick={() => removeRow('credit', i)}
-                            className="col-span-1 inline-flex items-center justify-center w-8 h-8 rounded-full text-brown-subtle hover:text-red-600 hover:bg-red-50 transition-colors"
+                            className="col-span-2 sm:col-span-1 inline-flex items-center justify-center w-8 h-8 rounded-full text-brown-subtle hover:text-red-600 hover:bg-red-50 transition-colors"
                             aria-label={`Remove credit row ${i + 1}`}>✕</button>
                         </div>
                       ))}
@@ -942,7 +942,81 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
                   <div className="text-xs font-bold uppercase tracking-wider text-brown-muted mb-2">
                     Terms — {fmtEuro(remainingNet)} remaining
                   </div>
-                  <div className="overflow-x-auto">
+                  {/* Below sm the table becomes a stack of cards. A seven-column
+                      editable table inside a horizontal scroller is unusable on a
+                      phone — you cannot see the term you are editing and its amount
+                      at the same time. Same handlers, same state, different shape. */}
+                  <div className="sm:hidden space-y-3">
+                    {computed.instalments.map((r, i) => (
+                      <div key={i} className="rounded-xl border border-brown-light bg-white p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-semibold text-brown-dark">{r.label}</span>
+                          <button type="button" onClick={() => removeRow('instalment', i)}
+                            className="inline-flex items-center justify-center w-8 h-8 rounded-full text-brown-subtle hover:text-red-600 hover:bg-red-50 transition-colors"
+                            aria-label={`Remove term ${i + 1}`}>✕</button>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <label className="block">
+                            <span className="block text-[10px] font-bold uppercase tracking-wider text-brown-muted mb-1">Due</span>
+                            <input type="date" className="!px-2 !py-1.5 text-sm"
+                              value={r.dueDate ?? ''}
+                              onChange={e => updateRow('instalment', i, { dueDate: e.target.value || null })}
+                              aria-label={`Due date for ${r.label}`} />
+                          </label>
+                          <label className="block">
+                            <span className="block text-[10px] font-bold uppercase tracking-wider text-brown-muted mb-1">Net (€)</span>
+                            <div className="relative">
+                              <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-brown-subtle">€</span>
+                              <input type="text" inputMode="decimal"
+                                className="!pl-5 !pr-2 !py-1.5 text-right tabular-nums text-sm"
+                                value={amountValue(`instalment-${i}`, r.amount)}
+                                onFocus={() => setAmountDraft({ key: `instalment-${i}`, value: r.amount ? String(r.amount) : '' })}
+                                onChange={e => {
+                                  setAmountDraft({ key: `instalment-${i}`, value: e.target.value })
+                                  updateRow('instalment', i, { amount: parseFloat(e.target.value.replace(',', '.')) || 0 })
+                                }}
+                                onBlur={() => setAmountDraft(null)}
+                                aria-label={`Net amount for ${r.label}`} />
+                            </div>
+                          </label>
+                        </div>
+
+                        <div className="flex items-center justify-between mt-2 pt-2 border-t border-brown-light/60 text-xs tabular-nums">
+                          <span className="text-brown-muted">VAT {fmtEuro(r.vat)}</span>
+                          <span className="text-brown-dark font-semibold">Gross {fmtEuro(r.gross)}</span>
+                        </div>
+
+                        <input
+                          className="term-condition-input !mt-2 !px-2 !py-1.5 text-sm"
+                          placeholder="Optional condition"
+                          value={r.note}
+                          onChange={e => updateRow('instalment', i, { note: e.target.value })}
+                          aria-label={`Condition for ${r.label}`} />
+                      </div>
+                    ))}
+
+                    <div className="rounded-xl bg-brown-pale/60 p-3 text-sm tabular-nums">
+                      <div className="flex justify-between py-0.5">
+                        <span className="font-semibold text-brown-dark">Scheduled ({computed.instalments.length})</span>
+                        <span className="font-semibold">{fmtEuro(computed.scheduledNet)}</span>
+                      </div>
+                      <div className="flex justify-between py-0.5 text-brown-muted text-xs">
+                        <span>VAT {vatRate}%</span>
+                        <span>{fmtEuro(computed.totalVat)} · gross {fmtEuro(computed.totalGross)}</span>
+                      </div>
+                      <div className="flex justify-between py-0.5 text-brown-muted">
+                        <span>− Already paid / invoiced</span>
+                        <span>{fmtEuro(computed.creditsNet)}</span>
+                      </div>
+                      <div className="flex justify-between py-1 mt-1 border-t border-brown-dark/15 font-bold">
+                        <span>= Total (excl. VAT)</span>
+                        <span>{fmtEuro(computed.totalNet)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="hidden sm:block overflow-x-auto">
                     {/* table-fixed + colgroup is what stops the sprawl: without a width
                         contract the browser distributes freely and the unlayered
                         `input { width: 100% }` rule makes every field fill its cell.
