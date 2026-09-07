@@ -181,6 +181,12 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
     phaseNote = '<strong>Phase 1 — Strategy &amp; Structure</strong> covers: project kick-off meeting, UX research and sitemap definition, content structure and wireframes, design direction proposal, and written Phase 1 sign-off by the client before Phase 2 begins.'
   } else if (data.phase === 'phase2') {
     phaseNote = '<strong>Phase 2 — Design &amp; Prototype</strong> covers: high-fidelity design in Figma, typography and layout refinement, a fully clickable interactive prototype, and client feedback rounds within the agreed revision scope before Phase 3 begins.'
+  } else if (data.phase === 'phase4') {
+    // Handover is not a slice of the build — it is the point where the work is
+    // accepted as complete. Kept deliberately separate from payment, so a project
+    // delivered in September is not treated as unfinished because its final
+    // instalment falls the following spring.
+    phaseNote = '<strong>Phase 4 — Handover &amp; Acceptance</strong> covers: written confirmation that the delivered work is accepted as complete, handover of all credentials and administrative access, and a 30-day warranty period from the acceptance date during which defects in the delivered work are corrected at no charge. Acceptance marks the completion of the project. Ownership of custom deliverables, source code and any domain registered on the client&rsquo;s behalf transfers on receipt of final payment, which may fall after the acceptance date. Work requested after acceptance, including ongoing support and maintenance, falls outside this agreement and requires a separate contract.'
   } else if (data.phase === 'phase3') {
     phaseNote = '<strong>Phase 3 — Build &amp; Launch</strong> covers: full front-end and back-end development, integration of all dynamic applications, cross-browser and device testing, deployment to the live hosting environment, and final handover of all credentials and source code.'
   }

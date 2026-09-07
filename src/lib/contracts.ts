@@ -3,7 +3,7 @@
 
 export type PlanKey = 'basic' | 'business' | 'enterprise' | 'custom'
 export type ContractType = 'standard' | 'phase' | 'extension' | 'custom'
-export type PhaseKey = 'phase1' | 'phase2' | 'phase3' | 'custom'
+export type PhaseKey = 'phase1' | 'phase2' | 'phase3' | 'phase4' | 'custom'
 export type LanguageKey = 'bilingual' | 'en' | 'nl'
 
 export const PLANS: Record<PlanKey, { label: string; price: number; initFee: number; rate: number; description: string }> = {
@@ -24,6 +24,7 @@ export const PHASE_LABELS: Record<PhaseKey, string> = {
   phase1: 'Phase 1 — Strategy & Structure',
   phase2: 'Phase 2 — Design & Prototype',
   phase3: 'Phase 3 — Build & Launch',
+  phase4: 'Phase 4 — Handover & Acceptance',
   custom: 'Custom phase',
 }
 
@@ -88,7 +89,7 @@ export type ContractRow = {
   id: string
   client: string
   type: string
-  phase: 'phase1' | 'phase2' | 'phase3' | 'custom'
+  phase: 'phase1' | 'phase2' | 'phase3' | 'phase4' | 'custom'
   value: number
   status: 'signed' | 'pending'
 }

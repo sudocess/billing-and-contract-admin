@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { MOCK_CONTRACTS, KNOWN_CLIENTS, nextContractId } from '@/lib/contracts'
+import { type PhaseKey, MOCK_CONTRACTS, KNOWN_CLIENTS, nextContractId } from '@/lib/contracts'
 import { prisma } from '@/lib/prisma'
 import ContractRowActions from './ContractRowActions'
 
@@ -27,7 +27,7 @@ type DisplayContract = {
   id: string
   client: string
   type: string
-  phase: 'phase1' | 'phase2' | 'phase3' | 'custom'
+  phase: PhaseKey
   value: number
   status: 'signed' | 'pending' | 'cancelled'
   viewable?: boolean
