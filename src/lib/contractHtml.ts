@@ -332,10 +332,17 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
   // ── Section 6: hosting + add-ons ─────────────────────────────────────
   const addonRows: string[] = []
   if (data.hosting.mode === 'both') {
-    const total = data.hosting.domainPrice + data.hosting.hostingPrice
-    addonRows.push(`<tr><td class="addon-name">Domain + Hosting via Hostinger<div class="addon-note">Client provided with both domain and managed hosting.</div></td><td class="addon-price">${fmt(total)}/yr</td></tr>`)
+    // Split deliberately. The public pricing page sells "Domain & hosting setup" as a
+    // one-off fee; combining it with the annual hosting charge and printing the sum
+    // "/yr" billed a setup fee as recurring, which the website does not support.
+    if (data.hosting.domainPrice > 0) {
+      addonRows.push(`<tr><td class="addon-name">Domain &amp; hosting setup<div class="addon-note">One-off. Domain registration and managed hosting configured on the client&rsquo;s behalf.</div></td><td class="addon-price">${fmt(data.hosting.domainPrice)} one-off</td></tr>`)
+    }
+    if (data.hosting.hostingPrice > 0) {
+      addonRows.push(`<tr><td class="addon-name">Managed hosting via Hostinger<div class="addon-note">Recurring. Passed through at cost; renews annually unless cancelled.</div></td><td class="addon-price">${fmt(data.hosting.hostingPrice)}/yr</td></tr>`)
+    }
   } else if (data.hosting.mode === 'hosting') {
-    addonRows.push(`<tr><td class="addon-name">Hostinger hosting<div class="addon-note">Client provides own domain. Managed hosting passed through at cost.</div></td><td class="addon-price">${fmt(data.hosting.hostingPrice)}/yr</td></tr>`)
+    addonRows.push(`<tr><td class="addon-name">Managed hosting via Hostinger<div class="addon-note">Client provides own domain. Managed hosting passed through at cost; renews annually unless cancelled.</div></td><td class="addon-price">${fmt(data.hosting.hostingPrice)}/yr</td></tr>`)
   } else {
     addonRows.push(`<tr><td class="addon-name">Domain &amp; hosting${data.hosting.clientHostingNote ? ` — ${data.hosting.clientHostingNote}` : ''}<div class="addon-note">Client manages own domain and hosting. No pass-through costs.<br/><br/><strong>Client responsibility clause:</strong> The client has chosen to use their own hosting and domain services. The client agrees to: (1) provide Engaging UX Design access to their hosting dashboard via info@engaginguxdesign.com; (2) accept full responsibility for all risks associated with their chosen hosting environment; (3) acknowledge that Engaging UX Design has no control over, and accepts no liability for, any technical disturbances, downtime, data loss, or security incidents related to the client's hosting provider.</div></td><td class="addon-price">€0</td></tr>`)
   }
@@ -646,7 +653,7 @@ ${includePrintScript ? '<button class="toolbar" onclick="window.print()">Save as
   </div>
   <div class="page-footer">
     <div class="pf-ref">Contract ID: ${esc(data.contractId)} · Engaging UX Design</div>
-    <div class="pf-num">Page 1 of 3</div>
+    <div class="pf-num">Page 1 of 5</div>
   </div>
 </div>
 
@@ -713,7 +720,7 @@ ${includePrintScript ? '<button class="toolbar" onclick="window.print()">Save as
   </div>
   <div class="page-footer">
     <div class="pf-ref">Contract ID: ${esc(data.contractId)} · Engaging UX Design</div>
-    <div class="pf-num">Page 2 of 3</div>
+    <div class="pf-num">Page 2 of 5</div>
   </div>
 </div>
 
@@ -761,11 +768,59 @@ ${includePrintScript ? '<button class="toolbar" onclick="window.print()">Save as
 
     <div class="section">
       <div class="section-label">12. Cancellation &amp; Termination</div>
-      <p class="clause">Either party may terminate with written notice. Upon termination, completed work is invoiced at the applicable milestone rate; outstanding invoices remain due; and deliverables transfer only after full payment. Projects inactive for more than <strong>60 days</strong> may be archived and a restart fee applied.</p>
+      <p class="clause">Either party may terminate this agreement by written notice of not less than <strong>14 days</strong>. Either party may terminate with immediate effect if the other commits a material breach that remains unremedied 14 days after written notice, or is declared bankrupt, is granted suspension of payments, or ceases to trade.</p>
+      <p class="clause">Upon termination, completed work is invoiced at the applicable milestone rate; outstanding invoices remain due; and deliverables transfer only after full payment. Where the client terminates for convenience, the client owes the fees for work performed and costs already committed up to the termination date, less any costs Engaging UX Design demonstrably saves by not completing the work. The parties agree that this settles any claim under article 7:764 BW. Projects inactive for more than <strong>60 days</strong> may be archived and a restart fee applied.</p>
+    </div>
+
+  </div>
+  <div class="page-footer">
+    <div class="pf-ref"><a href="https://engaginguxdesign.com/service-terms-and-conditions">engaginguxdesign.com/service-terms-and-conditions</a> · Contract ID: ${esc(data.contractId)}</div>
+    <div class="pf-num">Page 3 of 5</div>
+  </div>
+</div>
+
+<div class="page">
+  <div class="page-header-cont">
+    <div class="phc-brand">Engaging UX Design — Service Agreement</div>
+    <div class="phc-id">${esc(data.contractId)}</div>
+  </div>
+
+  <div class="page-body">
+
+    <div class="section">
+      <div class="section-label">13. Force Majeure</div>
+      <p class="clause">Neither party is liable for any failure or delay in performance caused by circumstances beyond its reasonable control and not attributable to its fault within the meaning of <strong>article 6:75 BW</strong>. Such circumstances include, without limitation: the failure, outage, suspension or discontinuation of any third-party platform on which delivery depends, including those named in section 7 and the hosting provider; loss of internet connectivity or power; cyber-attack or malicious third-party interference; changes in law or government measures; and, Engaging UX Design being operated by a single practitioner, the serious illness or incapacity of that practitioner.</p>
+      <p class="clause">Obligations affected by force majeure are suspended for its duration and the project timeline is extended accordingly, without either party incurring liability for damages arising from that suspension. Payment obligations for work already performed are not suspended. If a force majeure situation continues for more than <strong>60 consecutive days</strong>, either party may terminate the affected part of this agreement by written notice, with work performed up to that date remaining payable.</p>
     </div>
 
     <div class="section">
-      <div class="section-label">13. Governing Law</div>
+      <div class="section-label">14. Severability</div>
+      <p class="clause">If any provision of this agreement is held void, invalid or unenforceable in whole or in part, that provision shall be deemed replaced by a valid and enforceable provision approximating as closely as possible the intent and commercial effect of the original, and the remaining provisions shall continue in full force. The invalidity of one provision does not affect the validity of this agreement as a whole.</p>
+    </div>
+
+    <div class="section">
+      <div class="section-label">15. Entire Agreement</div>
+      <p class="clause">This agreement, together with the Engaging UX Design Service Terms &amp; Project Conditions as published on the date of signing, constitutes the entire agreement between the parties in respect of its subject matter, and supersedes all prior proposals, quotations, correspondence, discussions and understandings, whether written or oral. Where this agreement and those Service Terms conflict, this agreement prevails.</p>
+      <p class="clause">Amendments are valid only when agreed in writing by both parties. A change order or superseding agreement issued through the Engaging UX Design contract system and accepted by the client in the same manner as this agreement satisfies that requirement. The applicability of any general terms and conditions of the client is expressly rejected, whether or not referred to in the client&rsquo;s own documents.</p>
+    </div>
+
+  </div>
+  <div class="page-footer">
+    <div class="pf-ref"><a href="https://engaginguxdesign.com/service-terms-and-conditions">engaginguxdesign.com/service-terms-and-conditions</a> · Contract ID: ${esc(data.contractId)}</div>
+    <div class="pf-num">Page 4 of 5</div>
+  </div>
+</div>
+
+<div class="page">
+  <div class="page-header-cont">
+    <div class="phc-brand">Engaging UX Design — Service Agreement</div>
+    <div class="phc-id">${esc(data.contractId)}</div>
+  </div>
+
+  <div class="page-body">
+
+    <div class="section">
+      <div class="section-label">16. Governing Law</div>
       <p class="clause">This agreement is governed by Dutch law. Disputes will first be addressed by direct negotiation. If unresolved within 30 days, disputes shall be submitted to the competent court in the district of <strong>Oost-Brabant</strong>, the Netherlands. This contract is supplemented by the Engaging UX Design Service Terms &amp; Project Conditions: <a href="https://engaginguxdesign.com/service-terms-and-conditions" style="color:#8b3a1e;">engaginguxdesign.com/service-terms-and-conditions</a></p>
     </div>
 
@@ -832,7 +887,7 @@ ${includePrintScript ? '<button class="toolbar" onclick="window.print()">Save as
   </div>
   <div class="page-footer">
     <div class="pf-ref"><a href="https://engaginguxdesign.com/service-terms-and-conditions">engaginguxdesign.com/service-terms-and-conditions</a> · Contract ID: ${esc(data.contractId)}</div>
-    <div class="pf-num">Page 3 of 3</div>
+    <div class="pf-num">Page 5 of 5</div>
   </div>
 </div>
 
