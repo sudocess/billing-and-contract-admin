@@ -76,6 +76,75 @@ function ownerRegistrationLine(owner?: { kvk?: string; vat?: string }): string {
   return `<span class="muted">${parts.join(' &middot; ')}</span>`
 }
 
+/**
+ * Turns the free-text deliverables field into a real nested list.
+ *
+ * The text already carries structure — "•" for a point, a leading "-" for a detail
+ * under it, and bare lines acting as section headings ("Admin App - >"). It was
+ * being dropped into a single <p>, so HTML collapsed every newline into a space and
+ * the whole scope of work arrived as one unreadable block.
+ *
+ * Bullets are also normalised out of the middle of lines, because the source text
+ * sometimes runs a heading and its first bullet together on one line.
+ */
+function renderDeliverables(raw: string): string {
+  if (!raw.trim()) return '<p class="scope-text">[Deliverables to be specified.]</p>'
+
+  const lines = raw
+    .replace(/\s*•\s*/g, '\n• ')   // force every bullet onto its own line
+    .split(/\r?\n/)
+    .map(l => l.trim())
+
+  type Block =
+    | { kind: 'heading'; text: string }
+    | { kind: 'list'; items: { text: string; details: string[] }[] }
+
+  const blocks: Block[] = []
+  const currentList = () => {
+    const last = blocks[blocks.length - 1]
+    if (last?.kind === 'list') return last
+    const fresh: Block = { kind: 'list', items: [] }
+    blocks.push(fresh)
+    return fresh as Extract<Block, { kind: 'list' }>
+  }
+
+  for (const line of lines) {
+    if (!line) continue
+
+    if (line.startsWith('•')) {
+      currentList().items.push({ text: line.replace(/^•\s*/, ''), details: [] })
+      continue
+    }
+
+    if (/^[-–]\s+/.test(line)) {
+      const list = currentList()
+      const detail = line.replace(/^[-–]\s+/, '')
+      if (list.items.length === 0) list.items.push({ text: detail, details: [] })
+      else list.items[list.items.length - 1].details.push(detail)
+      continue
+    }
+
+    // Anything else is a section heading, e.g. "Admin App - >" or a preamble line.
+    blocks.push({ kind: 'heading', text: line.replace(/\s*-\s*>\s*$/, '') })
+  }
+
+  return blocks
+    .map(b => {
+      if (b.kind === 'heading') return `<div class="scope-heading">${esc(b.text)}</div>`
+      return `<ul class="scope-list">${b.items
+        .map(
+          it =>
+            `<li>${esc(it.text)}${
+              it.details.length
+                ? `<ul class="scope-sublist">${it.details.map(d => `<li>${esc(d)}</li>`).join('')}</ul>`
+                : ''
+            }</li>`,
+        )
+        .join('')}</ul>`
+    })
+    .join('')
+}
+
 const fmt = (v: number) => '€' + v.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 
 function fmtLong(iso?: string | null): string {
@@ -346,6 +415,24 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
   .detail-cell-value { font-size: 12.5px; font-weight: 600; color: #1c1008; }
   .detail-cell-value.accent { color: #8b3a1e; }
   .scope-text { font-size: 12.5px; color: #3b2110; line-height: 1.75; }
+  .scope-heading { font-size: 12.5px; font-weight: 700; color: #1c1008; margin: 14px 0 6px; }
+  .scope-heading:first-child { margin-top: 0; }
+  .scope-list { margin: 0 0 10px; padding-left: 18px; list-style: none; }
+  .scope-list > li {
+    position: relative; font-size: 12.5px; color: #3b2110; line-height: 1.65;
+    margin-bottom: 7px; padding-left: 2px; break-inside: avoid; page-break-inside: avoid;
+  }
+  .scope-list > li::before {
+    content: '\\2022'; position: absolute; left: -14px; top: 0;
+    color: #8b3a1e; font-weight: 700;
+  }
+  .scope-sublist { margin: 5px 0 0; padding-left: 16px; list-style: none; }
+  .scope-sublist > li {
+    position: relative; font-size: 12px; color: #5c3a28; line-height: 1.6; margin-bottom: 3px;
+  }
+  .scope-sublist > li::before {
+    content: '\\2013'; position: absolute; left: -12px; top: 0; color: #a8836a;
+  }
   .payment-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 4px; }
   .payment-table thead tr { background: #f7ede2; }
   .payment-table th { font-size: 9px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #8a6a55; padding: 8px 12px; text-align: left; border-bottom: 1px solid #d4bfb0; }
@@ -522,7 +609,7 @@ ${includePrintScript ? '<button class="toolbar" onclick="window.print()">Save as
 
     <div class="section">
       <div class="section-label">3. Scope of Work</div>
-      <p class="scope-text">${data.deliverables ? esc(data.deliverables) : '[Deliverables to be specified.]'}</p>
+      ${renderDeliverables(data.deliverables)}
       ${phaseNote ? `<div class="note" style="margin-top:10px;">${phaseNote}</div>` : ''}
     </div>
 
