@@ -28,7 +28,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     'clientCity', 'clientCountry', 'clientVat', 'clientKvk', 'invoiceNumber',
     'reference', 'paymentTerms', 'currency', 'language', 'internalNotes',
     'iban', 'bic', 'bankName', 'accountHolder', 'paymentRef', 'ownVat', 'ownKvk',
-    'lateFee', 'vatTreatment', 'notes', 'status',
+    'lateFee', 'vatTreatment', 'notes', 'status', 'paidReference', 'paidMethod',
   ]
 
   for (const field of stringFields) {
@@ -44,6 +44,14 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (body.invoiceDate) updateData.invoiceDate = new Date(body.invoiceDate)
   if (body.dueDate) updateData.dueDate = new Date(body.dueDate)
   if (body.paidAt) updateData.paidAt = new Date(body.paidAt)
+
+  // Moving an invoice back out of PAID must clear the payment record too, otherwise
+  // it keeps a reference to money it no longer claims to have received.
+  if (body.status && body.status !== 'PAID' && existing.status === 'PAID') {
+    updateData.paidAt = null
+    updateData.paidReference = null
+    updateData.paidMethod = null
+  }
   if (body.sentAt) updateData.sentAt = new Date(body.sentAt)
 
   if (body.subtotal !== undefined) updateData.subtotal = body.subtotal

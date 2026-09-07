@@ -125,7 +125,15 @@ model Invoice {
 
   // Timestamps
   sentAt         DateTime?
+  /// Date the money actually arrived — entered by hand, not the date the button was
+  /// pressed. Bank transfers clear days after they are sent, so stamping "now" made
+  /// the books disagree with the bank statement.
   paidAt         DateTime?
+  /// Bank reference or transaction id of the received payment, so a row here can be
+  /// tied back to a line on the bank statement.
+  paidReference  String?
+  /// How it arrived — bank transfer, iDEAL, cash, other.
+  paidMethod     String?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
