@@ -28,9 +28,21 @@ export async function POST(
   const { token } = await params
   const body = await req.json().catch(() => ({}))
   const name: string = (body.name || '').trim()
+  const agreed: boolean = body.agreed === true
 
   if (!name) {
     return NextResponse.json({ error: 'Signed name is required.' }, { status: 400 })
+  }
+
+  // The generated PDF states that the signer "checked the consent checkbox". Until
+  // now that flag lived only in the browser and was never sent, so the document
+  // asserted a consent step the server had no record of — and a direct API call
+  // produced an identical contract having never shown the checkbox at all.
+  if (!agreed) {
+    return NextResponse.json(
+      { error: 'You must confirm you have read and agree to the terms.' },
+      { status: 400 },
+    )
   }
 
   const contract = await prisma.contract.findUnique({
@@ -90,6 +102,7 @@ export async function POST(
       signedAt,
       signerName: name,
       signerIp: ip,
+      consentConfirmed: true,
       signingToken: null,
       signingTokenExpiresAt: null,
       // Copied into a plain Uint8Array: Prisma's Bytes expects one backed by an

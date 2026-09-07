@@ -23,7 +23,7 @@ export default function SigningForm({
       const res = await fetch(`/api/sign/${token}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: typedName.trim() }),
+        body: JSON.stringify({ name: typedName.trim(), agreed }),
       })
       const j = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(j.error || 'Something went wrong. Please try again.')

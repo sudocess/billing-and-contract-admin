@@ -243,14 +243,22 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
     } else {
       paymentRows = `<tr><td>Phase 3 — 30%</td><td>Due before final delivery / publishing</td><td class="amount">${fmt(data.pricing.p3)}</td></tr>`
     }
-    paymentNote = data.pricing.initFee > 0 ? `The project initiation fee (${fmt(data.pricing.initFee)}) is non-refundable.` : ''
+    // The Phase 1 row prints p1 minus the initiation fee, so without this sentence the
+    // three rows visibly fall short of the stated total with no explanation.
+    paymentNote = data.pricing.initFee > 0
+      ? `The project initiation fee (${fmt(data.pricing.initFee)}) has already been invoiced and is deducted from the Phase 1 amount shown above; the three payments therefore total ${fmt(data.pricing.total - data.pricing.initFee)} against a project value of ${fmt(data.pricing.total)}. The initiation fee is non-refundable.`
+      : ''
   } else {
     const p1Net = data.pricing.p1 - data.pricing.initFee
     paymentRows = `
       <tr><td>Phase 1 — 30%</td><td>Due before Phase 1 work begins</td><td class="amount">${fmt(p1Net)}</td></tr>
       <tr><td>Phase 2 — 40%</td><td>Due after written client approval of Phase 2</td><td class="amount">${fmt(data.pricing.p2)}</td></tr>
       <tr><td>Phase 3 — 30%</td><td>Due before final delivery / publishing</td><td class="amount">${fmt(data.pricing.p3)}</td></tr>`
-    paymentNote = data.pricing.initFee > 0 ? `The project initiation fee (${fmt(data.pricing.initFee)}) is non-refundable.` : ''
+    // The Phase 1 row prints p1 minus the initiation fee, so without this sentence the
+    // three rows visibly fall short of the stated total with no explanation.
+    paymentNote = data.pricing.initFee > 0
+      ? `The project initiation fee (${fmt(data.pricing.initFee)}) has already been invoiced and is deducted from the Phase 1 amount shown above; the three payments therefore total ${fmt(data.pricing.total - data.pricing.initFee)} against a project value of ${fmt(data.pricing.total)}. The initiation fee is non-refundable.`
+      : ''
   }
 
   // ── Section 5: revision tiers ────────────────────────────────────────
@@ -631,7 +639,7 @@ ${includePrintScript ? '<button class="toolbar" onclick="window.print()">Save as
         </tbody>
       </table>
       <div class="note">
-        Invoices are payable within 30 days of invoice date. Late payments are subject to statutory interest of 1% per month under Dutch law (Handelsrentewet) and a €25 administrative fee per reminder issued after the first. Engaging UX Design reserves the right to suspend work where payment is overdue by more than 14 days.${paymentNote ? ' ' + paymentNote : ''}
+        Invoices are payable within 30 days of invoice date. Late payments are subject to contractually agreed interest of 1% per month, in addition to any statutory commercial interest due under art. 6:119a BW and a €25 administrative fee per reminder issued after the first. Engaging UX Design reserves the right to suspend work where payment is overdue by more than 14 days.${paymentNote ? ' ' + paymentNote : ''}
       </div>
     </div>
 

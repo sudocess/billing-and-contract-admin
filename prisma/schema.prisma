@@ -276,6 +276,10 @@ model Contract {
   signingTokenExpiresAt DateTime?
   signerName            String?
   signerIp              String?
+  /// Whether the signer actually confirmed the consent checkbox. The PDF asserts this
+  /// in its eIDAS audit trail, so it has to be a recorded fact rather than an
+  /// assumption about browser state that was never transmitted.
+  consentConfirmed      Boolean   @default(false)
 
   /// The exact PDF the client was sent at signing. Previously this was rendered in
   /// memory, emailed and discarded, so editing a signed contract destroyed the only

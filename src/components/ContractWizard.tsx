@@ -77,8 +77,6 @@ const PROVIDER = {
   legalEmail: 'legal@engaginguxdesign.com',
   phone: '+31 6 12 92 23 16',
   website: 'engaginguxdesign.com',
-  kvk: 'KvK registered',
-  vat: 'VAT-registered (NL)',
   termsUrl: 'https://engaginguxdesign.com/service-terms-and-conditions',
 }
 
@@ -1842,7 +1840,7 @@ const EN = {
   p2Due: 'due after written client approval of Phase 2',
   p3Label: 'Phase 3 (30%)',
   p3Due: 'due before publishing / final delivery',
-  paymentTerms: 'Invoices payable within 30 days of invoice date. Late payments subject to statutory interest of 1% per month under Dutch law (Handelsrentewet) and a €25 administrative fee per reminder after the first. Engaging UX Design reserves the right to suspend work where payment is overdue by more than 14 days.',
+  paymentTerms: 'Invoices payable within 30 days of invoice date. Late payments subject to contractually agreed interest of 1% per month, in addition to any statutory commercial interest due under art. 6:119a BW and a €25 administrative fee per reminder after the first. Engaging UX Design reserves the right to suspend work where payment is overdue by more than 14 days.',
   revisions: 'Revision Scope',
   revisionsText: (o: { rate: number; tier2: boolean; tier3: boolean; custom: boolean }) => {
     const parts: string[] = []
@@ -1911,7 +1909,7 @@ const NL = {
   p2Due: 'verschuldigd na schriftelijke goedkeuring van Fase 2',
   p3Label: 'Fase 3 (30%)',
   p3Due: 'verschuldigd voor publicatie / eindlevering',
-  paymentTerms: 'Facturen zijn betaalbaar binnen 30 dagen na factuurdatum. Bij te late betaling is wettelijke handelsrente van 1% per maand verschuldigd (Handelsrentewet) en €25 administratiekosten per herinnering na de eerste. Engaging UX Design behoudt zich het recht voor om de werkzaamheden op te schorten bij een betalingsachterstand van meer dan 14 dagen.',
+  paymentTerms: 'Facturen zijn betaalbaar binnen 30 dagen na factuurdatum. Bij te late betaling is contractueel overeengekomen rente van 1% per maand verschuldigd, naast de eventueel verschuldigde wettelijke handelsrente op grond van art. 6:119a BW en €25 administratiekosten per herinnering na de eerste. Engaging UX Design behoudt zich het recht voor om de werkzaamheden op te schorten bij een betalingsachterstand van meer dan 14 dagen.',
   revisions: 'Revisie-omvang',
   revisionsText: (o: { rate: number; tier2: boolean; tier3: boolean; custom: boolean }) => {
     const parts: string[] = []
