@@ -79,7 +79,10 @@ function defaultFormData(): FormData {
     clientName: '', clientEmail: '', clientContact: '', clientPhone: '',
     clientAddress: '', clientCity: '', clientCountry: 'Netherlands',
     clientVat: '', clientKvk: '',
-    invoiceNumber: `${today.getFullYear()}-001`,
+    // Filled from the server on mount. Seeding a literal -001 here is what put
+    // 2026-001-143 and 2026-00105 in the books: every new invoice opened claiming to
+    // be the first of the year, and was corrected by hand each time.
+    invoiceNumber: '',
     invoiceDate: today.toISOString().split('T')[0],
     dueDate: due.toISOString().split('T')[0],
     reference: '', paymentTerms: '30 days', currency: '€', language: 'en',
@@ -160,6 +163,25 @@ export default function InvoiceForm({ initialData, invoiceId }: InvoiceFormProps
   const [clientSearch, setClientSearch] = useState(form.clientName)
   const [showClientDropdown, setShowClientDropdown] = useState(false)
   const clientDropdownRef = useRef<HTMLDivElement>(null)
+
+  // Only for a new invoice: an existing one keeps the number it was issued with.
+  useEffect(() => {
+    if (initialData) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch('/api/invoices/next-number', { cache: 'no-store' })
+        if (!res.ok) return
+        const { invoiceNumber } = await res.json()
+        // Left alone if it has already been typed into, so the fetch never overwrites
+        // a number chosen deliberately while it was in flight.
+        if (!cancelled && invoiceNumber) {
+          setForm(f => (f.invoiceNumber ? f : { ...f, invoiceNumber }))
+        }
+      } catch {/* the field stays editable; nothing is blocked by this failing */}
+    })()
+    return () => { cancelled = true }
+  }, [initialData])
 
   useEffect(() => {
     fetch('/api/clients').then(r => r.json()).then(setClients).catch(() => {})
