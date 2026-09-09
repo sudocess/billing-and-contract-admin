@@ -9,6 +9,7 @@ import { computeTermBilling, groupInvoicesByTerm, issuableAmount, type TermInvoi
 import type { ComputedRow } from '@/lib/installments'
 import ContractDetailActions from './ContractDetailActions'
 import SendContractDialog from './SendContractDialog'
+import SigningLinkPanel from './SigningLinkPanel'
 
 type ContractRow = {
   id: string
@@ -40,6 +41,8 @@ type ContractRow = {
   p3: number
   /// Variable-length schedule; null on contracts saved before the wizard sent it.
   installments: unknown
+  signingToken: string | null
+  signingTokenExpiresAt: string | null
   tier2Rate: number
   status: 'DRAFT' | 'PENDING' | 'SIGNED' | 'CANCELLED'
   createdAt: string
@@ -421,6 +424,13 @@ export default function ViewContractPage() {
 
           {/* Right column */}
           <div className="space-y-5">
+            <SigningLinkPanel
+              contractCode={contract.contractCode}
+              status={contract.status}
+              initialToken={contract.signingToken}
+              initialExpiresAt={contract.signingTokenExpiresAt}
+            />
+
             {/* Client */}
             <div className="panel p-5">
               <div className="text-xs font-bold text-brown-subtle uppercase tracking-wider mb-4">Client</div>
