@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { openContractPrintWindow, type PreviewData } from '@/components/ContractWizard'
+import { computeSchedule, fmtDueDate, parseSchedule } from '@/lib/installments'
 import ContractDetailActions from './ContractDetailActions'
 import SendContractDialog from './SendContractDialog'
 
@@ -35,6 +36,8 @@ type ContractRow = {
   p1: number
   p2: number
   p3: number
+  /// Variable-length schedule; null on contracts saved before the wizard sent it.
+  installments: unknown
   tier2Rate: number
   status: 'DRAFT' | 'PENDING' | 'SIGNED' | 'CANCELLED'
   createdAt: string
@@ -150,6 +153,13 @@ export default function ViewContractPage() {
   const addons = contract.data?.addons
   const hosting = contract.data?.hosting
 
+  // The `installments` column is authoritative once written, but contracts saved before
+  // the wizard sent it only carry the schedule inside the `data` snapshot. Falling back
+  // to the snapshot is what the client-facing document already does, so both surfaces
+  // state the same terms instead of this panel alone reverting to the 30/40/30 columns.
+  const schedule = parseSchedule(contract.installments) ?? parseSchedule(contract.data?.schedule)
+  const computed = schedule && schedule.instalments.length > 0 ? computeSchedule(schedule) : null
+
   return (
     <>
       {/* Top bar */}
@@ -256,12 +266,89 @@ export default function ViewContractPage() {
 
             {/* Payment schedule */}
             <div className="panel p-5">
-              <div className="text-xs font-bold text-brown-subtle uppercase tracking-wider mb-4">Payment schedule</div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <PayCard label="Payment 1" sub="Before work begins" amount={contract.p1} />
-                <PayCard label="Payment 2" sub="At agreed midpoint" amount={contract.p2} />
-                <PayCard label="Payment 3" sub="On final delivery" amount={contract.p3} />
+              <div className="flex items-baseline justify-between gap-3 mb-4">
+                <div className="text-xs font-bold text-brown-subtle uppercase tracking-wider">Payment schedule</div>
+                {computed && (
+                  <div className="text-[11px] text-brown-subtle">
+                    {computed.instalments.length} monthly terms
+                    {computed.vatRate > 0 ? ` · VAT ${computed.vatRate}%` : ' · no VAT'}
+                  </div>
+                )}
               </div>
+
+              {computed ? (
+                <div className="overflow-x-auto -mx-1 px-1">
+                  <table className="w-full text-sm border-collapse">
+                    <thead>
+                      <tr className="text-[10px] font-bold uppercase tracking-widest text-brown-subtle">
+                        <th className="text-left font-bold pb-2">Term</th>
+                        <th className="text-left font-bold pb-2">Due</th>
+                        <th className="text-right font-bold pb-2">Net</th>
+                        {computed.vatRate > 0 && <th className="text-right font-bold pb-2">Incl. VAT</th>}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {computed.rows.map((r, i) => (
+                        <tr key={`${r.label}-${i}`} className="border-t border-brown-dark/5">
+                          <td className="py-2 pr-3 text-brown-dark">
+                            {r.label}
+                            {r.kind === 'credit' && (
+                              <span className="ml-2 text-[10px] font-bold uppercase tracking-widest text-brown-subtle">
+                                Credit
+                              </span>
+                            )}
+                            {r.note && <div className="text-[11px] text-brown-subtle">{r.note}</div>}
+                          </td>
+                          <td className="py-2 pr-3 text-brown-subtle whitespace-nowrap">
+                            {r.dueDate ? fmtDueDate(r.dueDate) : '—'}
+                          </td>
+                          <td className="py-2 text-right tabular-nums font-semibold text-brown-dark whitespace-nowrap">
+                            {fmtEur(r.amount)}
+                          </td>
+                          {computed.vatRate > 0 && (
+                            <td className="py-2 pl-3 text-right tabular-nums text-brown-subtle whitespace-nowrap">
+                              {r.kind === 'credit' ? '—' : fmtEur(r.gross)}
+                            </td>
+                          )}
+                        </tr>
+                      ))}
+                      <tr className="border-t-2 border-brown-dark/15">
+                        <td className="py-2 pr-3 font-heading font-bold text-brown-dark" colSpan={2}>
+                          Total
+                        </td>
+                        <td className="py-2 text-right tabular-nums font-heading font-black text-brown-dark whitespace-nowrap">
+                          {fmtEur(computed.totalNet)}
+                        </td>
+                        {computed.vatRate > 0 && (
+                          <td className="py-2 pl-3 text-right tabular-nums font-semibold text-brown-dark whitespace-nowrap">
+                            {fmtEur(computed.totalGross)}
+                          </td>
+                        )}
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  {/* A silent mismatch here is how a schedule ends up short of the agreed
+                      value, so it is stated rather than left to be spotted by adding up. */}
+                  {Math.round(computed.totalNet * 100) !== Math.round(contract.totalValue * 100) && (
+                    <div className="mt-3 text-[11px] text-warning font-semibold">
+                      Schedule totals {fmtEur(computed.totalNet)} against a project value of{' '}
+                      {fmtEur(contract.totalValue)}.
+                    </div>
+                  )}
+                  {computed.creditsNet > 0 && (
+                    <div className="mt-3 text-[11px] text-brown-subtle">
+                      {fmtEur(computed.creditsNet)} already invoiced — listed above for completeness, not payable again.
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <PayCard label="Payment 1" sub="Before work begins" amount={contract.p1} />
+                  <PayCard label="Payment 2" sub="At agreed midpoint" amount={contract.p2} />
+                  <PayCard label="Payment 3" sub="On final delivery" amount={contract.p3} />
+                </div>
+              )}
               {contract.tier2Rate > 0 && (
                 <div className="mt-4 text-xs text-brown-subtle">
                   Tier-2 hourly rate: <span className="text-brown-dark font-semibold">{fmtEur(contract.tier2Rate)}/hr</span>

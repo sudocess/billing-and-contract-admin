@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 import { readSession } from '@/lib/auth'
 import { parseSchedule } from '@/lib/installments'
 
@@ -143,8 +144,11 @@ export async function POST(req: Request) {
         tier2Rate: body.pricing.tier2Rate || 0,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         data: body.data as any,
+        // Cleared rather than skipped: switching a contract back to the phase split has
+        // to remove the old terms, or the stale schedule keeps being rendered as if the
+        // monthly arrangement still stood.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ...(schedule ? { installments: schedule as any } : {}),
+        installments: schedule ? (schedule as any) : Prisma.DbNull,
       },
     })
     return NextResponse.json({ ok: true, id: saved.id, contractCode: saved.contractCode })

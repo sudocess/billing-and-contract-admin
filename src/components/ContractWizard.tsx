@@ -26,6 +26,7 @@ import {
   fmtEuro,
   fromCents,
   MAX_INSTALMENTS,
+  parseSchedule,
   relabel,
   sumRows,
   toCents,
@@ -256,6 +257,27 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
         setSupportAddon({ on: !!d.addons.support?.on, price: d.addons.support?.price ? String(d.addons.support.price) : '', months: String(d.addons.support?.months ?? 12) })
         setSupabaseAddon({ on: !!d.addons.supabase?.on, price: d.addons.supabase?.price ? String(d.addons.supabase.price) : '' })
         setVercelAddon({ on: !!d.addons.vercel?.on, price: d.addons.vercel?.price ? String(d.addons.vercel.price) : '' })
+      }
+
+      // Restore an agreed monthly schedule. Without this, reopening a contract for
+      // editing dropped step 4 back to 'phases' and the next save replaced the agreed
+      // terms with a 30/40/30 split the client never accepted.
+      const saved = parseSchedule(d.schedule)
+      if (saved && saved.mode === 'monthly' && saved.instalments.length > 0) {
+        setScheduleMode('monthly')
+        setVatRate(String(saved.vatRate))
+        setCredits(saved.credits)
+        setInstalments(saved.instalments)
+        setTermCount(String(saved.instalments.length))
+
+        const first = saved.instalments[0].dueDate
+        if (first) {
+          setFirstDueDate(first)
+          // The two anchors only diverge on month-end dates, so a first term landing on
+          // the last of its month is what distinguishes them. Guessing wrong here would
+          // let the date effect rewrite every agreed due date on open.
+          setDateAnchor(first === endOfMonth(first) ? 'end-of-month' : 'same-day')
+        }
       }
     }
   }, [prefill])
@@ -533,6 +555,10 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
           client: previewData.client,
           pricing: previewData.pricing,
           data: previewData,
+          // Without this the schedule reached the `data` snapshot but never the
+          // `installments` column, so every contract stored null there and the admin
+          // summary fell back to the legacy 30/40/30 split.
+          schedule: previewData.schedule,
         }),
       })
       if (!res.ok) {
