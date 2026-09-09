@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { generateInvoicePdf } from '@/lib/pdf'
-import { sendInvoiceEmail, buildInvoiceSummaryHTML } from '@/lib/email'
+import { sendInvoiceEmail, buildInvoiceSummaryHTML, buildPaymentLinkHTML } from '@/lib/email'
+import { readSession } from '@/lib/auth'
+import { checkPaymentLink } from '@/lib/paymentLink'
 
 // POST /api/invoices/[id]/send — send invoice email with PDF attachment
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  // The proxy already refuses anonymous requests, but it only verifies the JWT
+  // signature. readSession additionally honours the revoke-all watermark, so a
+  // session revoked from Settings cannot still trigger outbound mail from here.
+  const session = await readSession()
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const { id } = await params
   const body = await req.json()
   const { to, subject, message, language } = body
@@ -43,6 +51,30 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       language: invoice.language,
     })
 
+    // Payment request block. Re-validated at send time rather than trusted from
+    // storage: the allowlist may have tightened since the link was pasted, and this
+    // is the last point before it reaches a client.
+    let paymentHtml: string | undefined
+    if (invoice.paymentLinkUrl) {
+      const check = checkPaymentLink(invoice.paymentLinkUrl)
+      if (!check.ok) {
+        return NextResponse.json(
+          { error: `The payment link on this invoice is no longer acceptable: ${check.error}` },
+          { status: 400 },
+        )
+      }
+      paymentHtml = buildPaymentLinkHTML({
+        url: check.url!,
+        // The amount still outstanding, not the face value — a part-paid invoice must
+        // not ask again for the whole sum.
+        amount: invoice.paidAmount != null
+          ? Math.max(0, Math.round((invoice.grandTotal - invoice.paidAmount) * 100) / 100)
+          : invoice.grandTotal,
+        currency: invoice.currency,
+        language: invoice.language,
+      })
+    }
+
     // Send email
     await sendInvoiceEmail({
       to,
@@ -51,6 +83,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       invoiceHtml: summaryHtml,
       pdfBuffer,
       pdfFilename: `invoice-${invoice.invoiceNumber}.pdf`,
+      paymentHtml,
     })
 
     // Update invoice status

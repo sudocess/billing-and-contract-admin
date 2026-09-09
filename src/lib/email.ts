@@ -20,10 +20,12 @@ interface SendInvoiceEmailOptions {
   invoiceHtml: string
   pdfBuffer: Buffer
   pdfFilename: string
+  /** Optional payment-request block, already validated and rendered. */
+  paymentHtml?: string
 }
 
 export async function sendInvoiceEmail(opts: SendInvoiceEmailOptions) {
-  const html = buildEmailWrapper(opts.invoiceHtml, opts.message)
+  const html = buildEmailWrapper(opts.invoiceHtml, opts.message, opts.paymentHtml)
 
   await transporter.sendMail({
     from: process.env.SMTP_FROM || 'Engaging UX Design <info@engaginguxdesign.com>',
@@ -40,7 +42,7 @@ export async function sendInvoiceEmail(opts: SendInvoiceEmailOptions) {
   })
 }
 
-function buildEmailWrapper(invoiceBody: string, personalMessage: string): string {
+function buildEmailWrapper(invoiceBody: string, personalMessage: string, paymentBlock = ''): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
@@ -71,6 +73,8 @@ function buildEmailWrapper(invoiceBody: string, personalMessage: string): string
     ${invoiceBody}
   </div>
 </td></tr>
+
+${paymentBlock}
 
 <!-- PDF note -->
 <tr><td style="padding:16px 32px;">
@@ -129,6 +133,58 @@ export function buildInvoiceSummaryHTML(invoice: {
       ${isNL ? 'Totaal te betalen' : 'Total Due'}: ${invoice.currency}${invoice.grandTotal.toFixed(2)}
     </td></tr>
     </table>`
+}
+
+/**
+ * The "pay this" block.
+ *
+ * Two rules hold this together, and both exist because an email from us carrying a
+ * link and an amount is indistinguishable in form from a phishing attempt:
+ *
+ *   - the amount is printed next to the link, so a payment request built for the
+ *     wrong figure is visible to the client rather than only to us; and
+ *   - the destination is shown in full as readable text, never hidden behind a
+ *     friendly label, so the client can see it is their own bank before clicking.
+ *
+ * The URL is checked against the provider allowlist before it ever reaches here.
+ */
+export function buildPaymentLinkHTML(input: {
+  url: string
+  amount: number
+  currency: string
+  language: string
+}): string {
+  const isNL = input.language === 'nl'
+  const safeUrl = escapeHtml(input.url)
+  const amount = `${input.currency}${input.amount.toFixed(2)}`
+
+  return `
+<tr><td style="padding:16px 32px 0;">
+  <div style="background:#ffffff;border:1px solid rgba(59,33,16,0.14);border-radius:8px;padding:20px 24px;">
+    <div style="font-family:Helvetica,Arial,sans-serif;font-size:11px;font-weight:bold;text-transform:uppercase;letter-spacing:0.1em;color:#7a5a40;padding-bottom:10px;">
+      ${isNL ? 'Betaalverzoek' : 'Payment request'}
+    </div>
+    <div style="font-family:Helvetica,Arial,sans-serif;font-size:14px;color:#3b2110;line-height:1.6;padding-bottom:14px;">
+      ${isNL
+        ? `Je kunt <strong>${amount}</strong> voldoen via het onderstaande betaalverzoek.`
+        : `You can pay <strong>${amount}</strong> using the payment request below.`}
+    </div>
+    <div style="padding-bottom:12px;">
+      <a href="${safeUrl}" style="display:inline-block;background:#8b3a1e;color:#ffffff;font-family:Helvetica,Arial,sans-serif;font-size:14px;font-weight:bold;text-decoration:none;padding:11px 22px;border-radius:6px;">
+        ${isNL ? 'Betaal' : 'Pay'} ${amount}
+      </a>
+    </div>
+    <div style="font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#7a5a40;line-height:1.6;word-break:break-all;">
+      ${isNL ? 'De link gaat naar' : 'This link goes to'}:<br>
+      <span style="color:#3b2110;">${safeUrl}</span>
+    </div>
+    <div style="font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#7a5a40;line-height:1.6;padding-top:10px;">
+      ${isNL
+        ? 'Controleer altijd of het bedrag klopt voordat je betaalt. Bij twijfel, neem contact met ons op via het nummer onderaan.'
+        : 'Always check the amount before paying. If anything looks wrong, contact us on the number below.'}
+    </div>
+  </div>
+</td></tr>`
 }
 
 function escapeHtml(str: string): string {

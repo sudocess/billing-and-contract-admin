@@ -4,6 +4,7 @@ import InvoicePreview from '@/components/InvoicePreview'
 import StatusBadge from '@/components/StatusBadge'
 import { prisma } from '@/lib/prisma'
 import InvoiceActions from './InvoiceActions'
+import PaymentLinkPanel from './PaymentLinkPanel'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,6 +47,18 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
         </div>
 
         <div className="p-7 flex-1">
+          <PaymentLinkPanel
+            invoiceId={invoice.id}
+            initialUrl={invoice.paymentLinkUrl}
+            initialAddedAt={invoice.paymentLinkAt ? invoice.paymentLinkAt.toISOString() : null}
+            /* What is still owed, so a part-paid invoice does not ask for the full sum again. */
+            amountDue={
+              invoice.paidAmount != null
+                ? Math.max(0, Math.round((invoice.grandTotal - invoice.paidAmount) * 100) / 100)
+                : invoice.grandTotal
+            }
+            currency={invoice.currency}
+          />
           <InvoicePreview invoice={JSON.parse(JSON.stringify(invoice))} />
         </div>
     </>

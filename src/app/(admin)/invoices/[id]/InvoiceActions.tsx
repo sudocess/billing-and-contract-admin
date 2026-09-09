@@ -12,6 +12,9 @@ interface InvoiceActionsProps {
     clientName: string
     language: string
     status: string
+    grandTotal: number
+    currency: string
+    paidAmount: number | null
   }
 }
 
@@ -29,6 +32,10 @@ export default function InvoiceActions({ invoice }: InvoiceActionsProps) {
   const [paidAt, setPaidAt] = useState(() => new Date().toISOString().slice(0, 10))
   const [paidMethod, setPaidMethod] = useState<string>('Bank transfer')
   const [paidReference, setPaidReference] = useState('')
+  // Prefilled with the full amount but editable, because the reason this field exists
+  // is the case where less arrived than was asked for.
+  const [paidAmount, setPaidAmount] = useState(() =>
+    (invoice.paidAmount ?? invoice.grandTotal).toFixed(2))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -38,20 +45,28 @@ export default function InvoiceActions({ invoice }: InvoiceActionsProps) {
     setError('')
     setSaving(true)
     try {
-      const res = await fetch(`/api/invoices/${invoice.id}`, {
-        method: 'PUT',
+      const amount = Number(paidAmount)
+      if (!Number.isFinite(amount) || amount < 0) {
+        throw new Error('Enter the amount that actually arrived.')
+      }
+      const res = await fetch(`/api/invoices/${invoice.id}/confirm-payment`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          status: 'PAID',
-          // Midday avoids the date shifting a day either way across time zones.
-          paidAt: new Date(`${paidAt}T12:00:00`).toISOString(),
-          paidMethod,
-          paidReference: paidReference.trim(),
+          amount,
+          paidAt,
+          method: paidMethod,
+          reference: paidReference.trim(),
         }),
       })
-      if (!res.ok) throw new Error('Could not record the payment')
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(j.error || 'Could not record the payment')
       setPayModal(false)
-      setToast(`Recorded as paid on ${paidAt}`)
+      setToast(
+        j.shortfall > 0
+          ? `Recorded ${invoice.currency}${amount.toFixed(2)} — ${invoice.currency}${j.shortfall.toFixed(2)} still outstanding`
+          : `Recorded as paid on ${paidAt}`,
+      )
       router.refresh()
       setTimeout(() => setToast(''), 3500)
     } catch (err) {
@@ -63,10 +78,13 @@ export default function InvoiceActions({ invoice }: InvoiceActionsProps) {
 
   return (
     <>
-      {invoice.status !== 'PAID' && (
+      {/* Stays available after payment: a mistyped amount is exactly the thing that
+          needs correcting, and hiding the button would make the term's remaining
+          balance impossible to put right from here. */}
+      {(invoice.status !== 'PAID' || invoice.paidAmount != null) && (
         <button className="btn btn-success btn-sm" onClick={() => setPayModal(true)}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}><path d="M22 11.08V12a10 10 0 11-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
-          Mark Paid
+          {invoice.paidAmount != null ? 'Update payment' : 'Confirm payment'}
         </button>
       )}
       <button className="btn btn-primary" onClick={() => setSendModal(true)}>
@@ -96,6 +114,26 @@ export default function InvoiceActions({ invoice }: InvoiceActionsProps) {
                   {error}
                 </div>
               )}
+
+              <label className="block">
+                <span className="block text-xs font-bold uppercase tracking-wider text-brown-muted mb-1.5">
+                  Amount received
+                </span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  required
+                  value={paidAmount}
+                  onChange={e => setPaidAmount(e.target.value)}
+                />
+                <span className="block text-[11px] text-brown-subtle mt-1">
+                  Invoiced {invoice.currency}{invoice.grandTotal.toFixed(2)}.
+                  {Number(paidAmount) > 0 && Number(paidAmount) < invoice.grandTotal
+                    ? ` Short by ${invoice.currency}${(invoice.grandTotal - Number(paidAmount)).toFixed(2)} — the term will offer to invoice the remainder.`
+                    : ' Enter what actually arrived, not what was billed.'}
+                </span>
+              </label>
 
               <label className="block">
                 <span className="block text-xs font-bold uppercase tracking-wider text-brown-muted mb-1.5">
@@ -141,7 +179,7 @@ export default function InvoiceActions({ invoice }: InvoiceActionsProps) {
                   Cancel
                 </button>
                 <button type="submit" className="btn btn-success btn-sm" disabled={saving}>
-                  {saving ? 'Saving…' : 'Mark as paid'}
+                  {saving ? 'Saving…' : 'Confirm payment'}
                 </button>
               </div>
             </form>

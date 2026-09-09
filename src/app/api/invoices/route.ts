@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { readSession } from '@/lib/auth'
 
 // GET /api/invoices — list all invoices
 export async function GET() {
+  // The proxy gates this route, but only on the JWT signature; readSession also
+  // honours the revoke-all watermark so a revoked session is genuinely dead here.
+  const session = await readSession()
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const invoices = await prisma.invoice.findMany({
     orderBy: { createdAt: 'desc' },
     include: { items: true },
@@ -12,6 +18,11 @@ export async function GET() {
 
 // POST /api/invoices — create new invoice
 export async function POST(req: NextRequest) {
+  // The proxy gates this route, but only on the JWT signature; readSession also
+  // honours the revoke-all watermark so a revoked session is genuinely dead here.
+  const session = await readSession()
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const body = await req.json()
 
   const {

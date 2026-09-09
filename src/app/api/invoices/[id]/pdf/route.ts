@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { readSession } from '@/lib/auth'
 import { generateInvoicePdf } from '@/lib/pdf'
 
 // GET /api/invoices/[id]/pdf — download invoice as PDF
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  // The proxy gates this route, but only on the JWT signature; readSession also
+  // honours the revoke-all watermark so a revoked session is genuinely dead here.
+  const session = await readSession()
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const { id } = await params
 
   const invoice = await prisma.invoice.findUnique({

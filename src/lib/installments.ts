@@ -23,6 +23,16 @@
 export type ScheduleMode = 'phases' | 'monthly'
 
 export interface ScheduleRow {
+  /**
+   * Stable identity for this row, independent of its position or label.
+   *
+   * Labels are renumbered by `relabel` whenever a term is added or removed, and the
+   * whole array is rebuilt when the term count changes. An invoice pinned to a label
+   * or an index would therefore follow the position rather than the obligation, and
+   * quietly start billing a different term. Optional only because rows written before
+   * this existed have none; `ensureRowIds` fills those in on first use.
+   */
+  id?: string
   /** Short label, e.g. "Term 3 of 5" or "Paid — invoice 2026-00105". */
   label: string
   /** Condition or explanation, e.g. "Due on signing" or "Logo + pre-draft". */
@@ -121,6 +131,7 @@ export function buildMonthlyInstalments(
       dueDate = anchor === 'end-of-month' ? endOfMonth(stepped) : stepped
     }
     return {
+      id: newRowId(),
       label: `Term ${i + 1} of ${n}`,
       note: '',
       amount: fromCents(cents),
@@ -131,7 +142,37 @@ export function buildMonthlyInstalments(
 
 /** Re-label rows after one is added or removed, so "Term 2 of 5" stays truthful. */
 export function relabel(rows: ScheduleRow[]): ScheduleRow[] {
+  // Spread keeps `id` intact — renaming a row must never re-identify it.
   return rows.map((r, i) => ({ ...r, label: `Term ${i + 1} of ${rows.length}` }))
+}
+
+/** Random, collision-free row id. Prefixed so it is recognisable in stored JSON. */
+export function newRowId(): string {
+  return `trm_${globalThis.crypto.randomUUID().replace(/-/g, '').slice(0, 20)}`
+}
+
+/**
+ * Give every row an id, returning the schedule and whether anything changed.
+ *
+ * Schedules written before ids existed have none, and they cannot be minted at render
+ * time: that would hand the same term a different id on every request. So they are
+ * assigned once, by the caller that is about to persist them.
+ */
+export function ensureRowIds(schedule: PaymentSchedule): { schedule: PaymentSchedule; changed: boolean } {
+  let changed = false
+  const fill = (rows: ScheduleRow[]): ScheduleRow[] =>
+    rows.map((r) => {
+      if (r.id) return r
+      changed = true
+      return { ...r, id: newRowId() }
+    })
+
+  const next: PaymentSchedule = {
+    ...schedule,
+    credits: fill(schedule.credits),
+    instalments: fill(schedule.instalments),
+  }
+  return { schedule: next, changed }
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -274,6 +315,9 @@ export function parseSchedule(value: unknown): PaymentSchedule | null {
     rows
       .filter((r): r is Record<string, unknown> => !!r && typeof r === 'object')
       .map((r) => ({
+        // Carried through verbatim; regenerating here would break every invoice
+        // already pinned to the row on each render.
+        ...(typeof r.id === 'string' && r.id ? { id: r.id } : {}),
         label: String(r.label ?? ''),
         note: String(r.note ?? ''),
         amount: Number(r.amount) || 0,

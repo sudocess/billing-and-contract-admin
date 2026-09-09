@@ -78,100 +78,119 @@ model submissions {
 }
 
 model Invoice {
-  id             String        @id @default(uuid())
-  invoiceNumber  String        @unique
-  status         InvoiceStatus @default(DRAFT)
+  id            String        @id @default(uuid())
+  invoiceNumber String        @unique
+  status        InvoiceStatus @default(DRAFT)
 
   // Client
-  clientName     String
-  clientEmail    String
-  clientContact  String?
-  clientPhone    String?
-  clientAddress  String?
-  clientCity     String?
-  clientCountry  String        @default("Netherlands")
-  clientVat      String?
-  clientKvk      String?
+  clientName    String
+  clientEmail   String
+  clientContact String?
+  clientPhone   String?
+  clientAddress String?
+  clientCity    String?
+  clientCountry String  @default("Netherlands")
+  clientVat     String?
+  clientKvk     String?
 
   // Invoice details
-  invoiceDate    DateTime
-  dueDate        DateTime
-  reference      String?
-  paymentTerms   String        @default("30 days")
-  currency       String        @default("€")
-  language       String        @default("en")
+  invoiceDate  DateTime
+  dueDate      DateTime
+  reference    String?
+  paymentTerms String   @default("30 days")
+  currency     String   @default("€")
+  language     String   @default("en")
 
   // Totals
-  subtotal       Float         @default(0)
-  vatTotal       Float         @default(0)
-  grandTotal     Float         @default(0)
+  subtotal   Float @default(0)
+  vatTotal   Float @default(0)
+  grandTotal Float @default(0)
 
   // Payment
-  iban           String?
-  bic            String?
-  bankName       String?
-  accountHolder  String?       @default("Engaging UX Design")
-  paymentRef     String?
+  iban          String?
+  bic           String?
+  bankName      String?
+  accountHolder String? @default("Engaging UX Design")
+  paymentRef    String?
 
   // EU Compliance
-  ownVat         String?
-  ownKvk         String?
-  lateFee        String?       @default("1% per month")
-  vatTreatment   String        @default("standard")
+  ownVat       String?
+  ownKvk       String?
+  lateFee      String? @default("1% per month")
+  vatTreatment String  @default("standard")
 
   // Notes
-  notes          String?
-  internalNotes  String?
+  notes         String?
+  internalNotes String?
 
   // Timestamps
-  sentAt         DateTime?
+  sentAt        DateTime?
   /// Date the money actually arrived — entered by hand, not the date the button was
   /// pressed. Bank transfers clear days after they are sent, so stamping "now" made
   /// the books disagree with the bank statement.
-  paidAt         DateTime?
+  paidAt        DateTime?
   /// Bank reference or transaction id of the received payment, so a row here can be
   /// tied back to a line on the bank statement.
-  paidReference  String?
+  paidReference String?
   /// How it arrived — bank transfer, iDEAL, cash, other.
-  paidMethod     String?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  paidMethod    String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   // Client relation (NEW)
-  clientId       String?
-  client         Client?       @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  // Contract linkage — which contract, and which term of its payment schedule.
+  contractId     String?
+  contract       Contract? @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  /// Stable id of the schedule row being billed. Labels like "Term 3 of 8" are
+  /// renumbered whenever the schedule is edited, so an invoice pinned to a label
+  /// would silently re-point at a different term and bill the wrong money.
+  scheduleTermId String?
+
+  /// Payment request URL (Rabobank betaalverzoek), pasted by hand.
+  paymentLinkUrl String?
+  /// When the link was pasted. These links expire, so the age has to be visible
+  /// rather than assumed before one is sent again in a reminder.
+  paymentLinkAt  DateTime?
+
+  /// What actually arrived, which is not always what was billed. Recorded by hand
+  /// from the bank, and the basis for deciding a term still owes a remainder.
+  paidAmount Float?
 
   // Relations
-  items          InvoiceItem[]
+  items InvoiceItem[]
 
-  @@map("invoices")
   @@index([clientId])
+  @@index([contractId, scheduleTermId])
+  @@map("invoices")
 }
 
 model InvoiceItem {
-  id          String  @id @default(uuid())
+  id          String @id @default(uuid())
   invoiceId   String
   description String
-  quantity    Float   @default(1)
-  unitPrice   Float   @default(0)
-  vatRate     Float   @default(21)
-  amount      Float   @default(0)
+  quantity    Float  @default(1)
+  unitPrice   Float  @default(0)
+  vatRate     Float  @default(21)
+  amount      Float  @default(0)
 
-  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
   @@map("invoice_items")
 }
 
 model AdminUser {
-  id              String   @id @default(uuid())
-  email           String   @unique
-  passwordHash    String
+  id           String @id @default(uuid())
+  email        String @unique
+  passwordHash String
 
   // Deprecated — the authenticator app + printed recovery codes were replaced by
   // emailed one-time login codes. Columns kept so the migration stays additive;
   // nothing reads them any more.
-  totpSecret      String?
-  recoveryCodes   String[] @default([])
+  totpSecret    String?
+  recoveryCodes String[] @default([])
 
   // Emailed one-time login code (second factor)
   loginCodeHash      String?
@@ -183,13 +202,13 @@ model AdminUser {
   // before this moment, since the JWTs themselves are stateless.
   sessionsValidFrom DateTime @default(now())
 
-  failedAttempts  Int      @default(0)
-  lockedUntil     DateTime?
-  lastLoginAt     DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  failedAttempts Int       @default(0)
+  lockedUntil    DateTime?
+  lastLoginAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  trustedDevices  TrustedDevice[]
+  trustedDevices TrustedDevice[]
 
   @@map("admin_users")
 }
@@ -199,20 +218,20 @@ model AdminUser {
 /// Hard 30-day expiry from issuance — never extended — so a code is genuinely
 /// required every 30 days even on a browser in daily use.
 model TrustedDevice {
-  id         String    @id @default(uuid())
-  userId     String
-  user       AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String    @id @default(uuid())
+  userId String
+  user   AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   /// sha256 of the random 32-byte cookie value. The raw token is never stored.
-  tokenHash  String    @unique
-  label      String    @default("Unknown browser")
+  tokenHash String @unique
+  label     String @default("Unknown browser")
 
-  createdAt  DateTime  @default(now())
-  lastUsedAt DateTime  @default(now())
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime @default(now())
   expiresAt  DateTime
 
-  @@map("trusted_devices")
   @@index([userId])
+  @@map("trusted_devices")
 }
 
 enum ContractStatus {
@@ -224,24 +243,24 @@ enum ContractStatus {
 }
 
 model Contract {
-  id               String         @id @default(uuid())
-  contractCode     String         @unique // human-readable, e.g. CONT-LHR-PH3-2026
-  status           ContractStatus @default(DRAFT)
+  id           String         @id @default(uuid())
+  contractCode String         @unique // human-readable, e.g. CONT-LHR-PH3-2026
+  status       ContractStatus @default(DRAFT)
 
-  contractType     String         // standard | phase | extension | custom
-  plan             String?        // basic | business | enterprise | custom
-  phase            String         // phase1 | phase2 | phase3 | custom
-  phaseLabel       String
-  language         String         @default("en")
+  contractType String // standard | phase | extension | custom
+  plan         String? // basic | business | enterprise | custom
+  phase        String // phase1 | phase2 | phase3 | custom
+  phaseLabel   String
+  language     String  @default("en")
 
-  projectName      String?
-  deliverables     String?
-  phaseStart       String?
-  phaseEnd         String?
+  projectName  String?
+  deliverables String?
+  phaseStart   String?
+  phaseEnd     String?
 
   // Client relation (NEW) — nullable so legacy rows don't fail the migration
-  clientId         String?
-  client           Client?        @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
 
   // Client snapshot (kept for audit even after the relation exists)
   clientName       String
@@ -257,20 +276,20 @@ model Contract {
   dedicatedEmail   String?
 
   // Pricing
-  totalValue       Float          @default(0)
-  initFee          Float          @default(0)
+  totalValue Float @default(0)
+  initFee    Float @default(0)
   /// Legacy fixed 30/40/30 split. Still written and still rendered for contracts
   /// that have no `installments` schedule, so older contracts are unchanged.
-  p1               Float          @default(0)
-  p2               Float          @default(0)
-  p3               Float          @default(0)
-  tier2Rate        Float          @default(0)
+  p1         Float @default(0)
+  p2         Float @default(0)
+  p3         Float @default(0)
+  tier2Rate  Float @default(0)
 
   /// Variable-length payment schedule: { credits[], instalments[] }, all net of VAT.
   /// When present it replaces the p1/p2/p3 rendering entirely. See src/lib/installments.ts.
-  installments     Json?
+  installments Json?
 
-  data             Json
+  data Json
 
   signingToken          String?   @unique
   signingTokenExpiresAt DateTime?
@@ -285,47 +304,50 @@ model Contract {
   /// memory, emailed and discarded, so editing a signed contract destroyed the only
   /// record of what was actually agreed. Stored in-row so the document and its audit
   /// trail are backed up and restored together.
-  signedPdf             Bytes?
+  signedPdf        Bytes?
   /// SHA-256 of signedPdf — lets the stored file be proven byte-identical to the
   /// copy the client holds, rather than merely asserted to be.
-  signedPdfSha256       String?
-  signedPdfSize         Int?
+  signedPdfSha256  String?
+  signedPdfSize    Int?
   /// Signing reference embedded in the PDF, for cross-checking against the client copy.
-  signingReference      String?
+  signingReference String?
 
   // Supersede chain — replaces a previous contract (plan-tier change)
-  supersedesId     String?        @unique
-  supersedes       Contract?      @relation("Supersession", fields: [supersedesId], references: [id], onDelete: SetNull)
-  supersededBy     Contract?      @relation("Supersession")
+  supersedesId String?   @unique
+  supersedes   Contract? @relation("Supersession", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersededBy Contract? @relation("Supersession")
 
   // Change-order chain — adds scope to a parent contract (extra app, new module)
   parentContractId String?
-  parentContract   Contract?      @relation("ChangeOrder", fields: [parentContractId], references: [id], onDelete: SetNull)
-  changeOrders     Contract[]     @relation("ChangeOrder")
+  parentContract   Contract?  @relation("ChangeOrder", fields: [parentContractId], references: [id], onDelete: SetNull)
+  changeOrders     Contract[] @relation("ChangeOrder")
 
   // Archive + audit-trail note
-  archivedAt       DateTime?
-  versionNote      String?
+  archivedAt  DateTime?
+  versionNote String?
 
-  signedAt         DateTime?
-  sentAt           DateTime?
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  /// Invoices raised against this contract's payment schedule.
+  invoices Invoice[]
 
-  @@map("contracts")
+  signedAt  DateTime?
+  sentAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
   @@index([clientId])
   @@index([parentContractId])
+  @@map("contracts")
 }
 
 model Client {
-  id             String     @id @default(uuid())
+  id             String   @id @default(uuid())
   name           String
   initials       String
-  email          String     @default("")
-  type           String     @default("New client")
-  currentPhase   Int        @default(0)
-  clientCode     String     @unique
-  phases         Json       @default("[]")
+  email          String   @default("")
+  type           String   @default("New client")
+  currentPhase   Int      @default(0)
+  clientCode     String   @unique
+  phases         Json     @default("[]")
   company        String?
   phone          String?
   kvk            String?
@@ -336,12 +358,12 @@ model Client {
   country        String?
   dedicatedEmail String?
   password       String?
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   // Relations (NEW) — replaces the dropped contracts/invoices Int columns
-  contracts      Contract[]
-  invoices       Invoice[]
+  contracts Contract[]
+  invoices  Invoice[]
 
   @@map("clients")
 }

@@ -12,7 +12,21 @@ export async function GET(
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { code } = await params
-  const contract = await prisma.contract.findUnique({ where: { contractCode: code } })
+  const contract = await prisma.contract.findUnique({
+    where: { contractCode: code },
+    include: {
+      // The schedule panel needs these to show what each term has been billed and
+      // paid, so they travel with the contract rather than in a second round trip.
+      invoices: {
+        select: {
+          id: true, invoiceNumber: true, status: true, grandTotal: true,
+          paidAmount: true, paidAt: true, sentAt: true, invoiceDate: true,
+          paymentLinkUrl: true, paymentLinkAt: true, scheduleTermId: true,
+        },
+        orderBy: { invoiceDate: 'asc' },
+      },
+    },
+  })
   if (!contract) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   return NextResponse.json({ contract })
 }

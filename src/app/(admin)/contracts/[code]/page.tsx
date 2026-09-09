@@ -5,6 +5,8 @@ import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { openContractPrintWindow, type PreviewData } from '@/components/ContractWizard'
 import { computeSchedule, fmtDueDate, parseSchedule } from '@/lib/installments'
+import { computeTermBilling, groupInvoicesByTerm, issuableAmount, type TermInvoice, type TermBilling } from '@/lib/termBilling'
+import type { ComputedRow } from '@/lib/installments'
 import ContractDetailActions from './ContractDetailActions'
 import SendContractDialog from './SendContractDialog'
 
@@ -45,6 +47,7 @@ type ContractRow = {
   signedAt: string | null
   sentAt: string | null
   data: PreviewData | null
+  invoices?: TermInvoice[]
 }
 
 const fmtEur = (n: number) => '€' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
@@ -114,6 +117,27 @@ export default function ViewContractPage() {
     return out
   }, [contract])
 
+  const [issuing, setIssuing] = useState<string | null>(null)
+
+  async function issueInvoice(termId: string) {
+    if (!contract || issuing) return
+    setIssuing(termId)
+    try {
+      const res = await fetch(
+        `/api/contracts/${encodeURIComponent(contract.contractCode)}/terms/${termId}/invoice`,
+        { method: 'POST' },
+      )
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(j.error || 'Could not issue the invoice.')
+      // Straight to the draft: the amounts and VAT treatment want a look before
+      // anything is sent, which is the whole reason this does not send by itself.
+      router.push(`/invoices/${j.invoiceId}`)
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Could not issue the invoice.')
+      setIssuing(null)
+    }
+  }
+
   function handleOpenPdf() {
     if (!contract?.data) {
       alert('This contract has no preview snapshot saved.')
@@ -159,6 +183,7 @@ export default function ViewContractPage() {
   // state the same terms instead of this panel alone reverting to the 30/40/30 columns.
   const schedule = parseSchedule(contract.installments) ?? parseSchedule(contract.data?.schedule)
   const computed = schedule && schedule.instalments.length > 0 ? computeSchedule(schedule) : null
+  const invoicesByTerm = groupInvoicesByTerm(contract.invoices ?? [])
 
   return (
     <>
@@ -285,11 +310,15 @@ export default function ViewContractPage() {
                         <th className="text-left font-bold pb-2">Due</th>
                         <th className="text-right font-bold pb-2">Net</th>
                         {computed.vatRate > 0 && <th className="text-right font-bold pb-2">Incl. VAT</th>}
+                        <th className="text-right font-bold pb-2 pl-3">Invoicing</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {computed.rows.map((r, i) => (
-                        <tr key={`${r.label}-${i}`} className="border-t border-brown-dark/5">
+                      {computed.rows.map((r, i) => {
+                        const billing = computeTermBilling(r, r.id ? (invoicesByTerm.get(r.id) ?? []) : [])
+                        const canIssue = issuableAmount(r, billing)
+                        return (
+                        <tr key={r.id || `${r.label}-${i}`} className="border-t border-brown-dark/5 align-top">
                           <td className="py-2 pr-3 text-brown-dark">
                             {r.label}
                             {r.kind === 'credit' && (
@@ -310,8 +339,20 @@ export default function ViewContractPage() {
                               {r.kind === 'credit' ? '—' : fmtEur(r.gross)}
                             </td>
                           )}
+                          <td className="py-2 pl-3 text-right">
+                            <TermInvoicing
+                              row={r}
+                              billing={billing}
+                              canIssue={canIssue}
+                              contractCode={contract.contractCode}
+                              contractStatus={contract.status}
+                              busy={issuing === r.id}
+                              onIssue={() => issueInvoice(r.id!)}
+                            />
+                          </td>
                         </tr>
-                      ))}
+                        )
+                      })}
                       <tr className="border-t-2 border-brown-dark/15">
                         <td className="py-2 pr-3 font-heading font-bold text-brown-dark" colSpan={2}>
                           Total
@@ -324,6 +365,7 @@ export default function ViewContractPage() {
                             {fmtEur(computed.totalGross)}
                           </td>
                         )}
+                        <td />
                       </tr>
                     </tbody>
                   </table>
@@ -439,6 +481,102 @@ function Field({ label, value }: { label: string; value: string }) {
       <div className="text-brown-dark">{value}</div>
     </div>
   )
+}
+
+/**
+ * Invoicing state for a single schedule term.
+ *
+ * A term is an obligation, not a document, so this shows every invoice raised against
+ * it rather than a single yes/no. That matters when a payment comes up short: the
+ * original invoice stays visible at what was actually received, and the remainder
+ * becomes issuable alongside it.
+ */
+function TermInvoicing({
+  row, billing, canIssue, contractCode, contractStatus, busy, onIssue,
+}: {
+  row: ComputedRow
+  billing: TermBilling
+  canIssue: number
+  contractCode: string
+  contractStatus: string
+  busy: boolean
+  onIssue: () => void
+}) {
+  if (row.kind === 'credit') {
+    return <span className="text-[11px] text-brown-subtle">Already invoiced</span>
+  }
+
+  // Rows predating stable ids cannot be billed until the contract is saved once more,
+  // and saying so is better than a button that fails on click.
+  if (!row.id) {
+    return <span className="text-[11px] text-brown-subtle">Save the contract to enable invoicing</span>
+  }
+
+  const cancelled = contractStatus === 'CANCELLED'
+
+  return (
+    <div className="flex flex-col items-end gap-1.5">
+      {billing.invoices.map(inv => (
+        <Link
+          key={inv.id}
+          href={`/invoices/${inv.id}`}
+          className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap transition-colors ${
+            inv.paidAmount != null
+              ? 'bg-success/15 text-success hover:bg-success/25'
+              : 'bg-warning/15 text-warning hover:bg-warning/25'
+          }`}
+          title={
+            inv.paidAmount != null
+              ? `Received ${fmtEur(inv.paidAmount)} of ${fmtEur(inv.grandTotal)}`
+              : `Invoiced ${fmtEur(inv.grandTotal)} — payment not yet confirmed`
+          }
+        >
+          <span>{inv.invoiceNumber}</span>
+          <span className="opacity-70">
+            {inv.paidAmount != null
+              ? `paid ${fmtEur(inv.paidAmount)}`
+              : `sent ${fmtShortDate(inv.sentAt ?? inv.invoiceDate)}`}
+          </span>
+        </Link>
+      ))}
+
+      {billing.overpaid > 0 && (
+        <span className="text-[11px] font-semibold text-warning">
+          Overpaid by {fmtEur(billing.overpaid)}
+        </span>
+      )}
+
+      {canIssue > 0 ? (
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm !py-1 !text-[11px]"
+          onClick={onIssue}
+          disabled={busy || cancelled}
+          title={cancelled ? 'Reactivate the contract before issuing invoices' : undefined}
+        >
+          {busy
+            ? 'Issuing…'
+            : billing.state === 'unbilled'
+              ? 'Issue invoice'
+              : `Issue remaining ${fmtEur(canIssue)}`}
+        </button>
+      ) : billing.state === 'settled' ? (
+        <span className="text-[11px] font-semibold text-success">Settled</span>
+      ) : (
+        <span className="text-[11px] text-brown-subtle">Awaiting payment</span>
+      )}
+
+      {cancelled && canIssue > 0 && (
+        <span className="text-[10px] text-brown-subtle">Contract cancelled</span>
+      )}
+      <span className="sr-only">{contractCode}</span>
+    </div>
+  )
+}
+
+function fmtShortDate(d: Date | string | null) {
+  if (!d) return '—'
+  return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })
 }
 
 function PayCard({ label, sub, amount }: { label: string; sub: string; amount: number }) {
