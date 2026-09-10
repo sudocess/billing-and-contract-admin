@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { fmtEuro, toCents, fromCents } from '@/lib/installments'
 import type { PastInvoice } from '@/components/ContractWizard'
 import {
-  DEFAULT_TIERS, DEFAULT_FEATURES, effectiveRate, rateVerdict, RATE_FLOOR,
+  DEFAULT_TIERS, DEFAULT_FEATURES, effectiveRate, rateVerdict, RATE_FLOOR, monthlyFee,
   type CareTier, type CareFeature,
 } from '@/lib/carePlan'
 
@@ -130,7 +130,7 @@ export default function CarePlanWizard() {
   const isProposal = selectedTier === null
   const hoursNum = chosen.includedHours
   const rateNum = chosen.overageRate
-  const fee = chosen.monthlyFee
+  const fee = monthlyFee(chosen)
   const effective = effectiveRate(chosen)
 
   function setTier(key: CareTier['key'], patch: Partial<CareTier>) {
@@ -147,6 +147,32 @@ export default function CarePlanWizard() {
       return { ...f, values }
     }))
   }
+  /**
+   * Turn the plan-covers text into comparison rows.
+   *
+   * Everything arrives ticked on all three plans, because that is the common case and
+   * unticking is faster than ticking. Rows already present are left alone rather than
+   * duplicated, so the button can be pressed twice without making a mess.
+   */
+  function generateTiersFromNotes() {
+    const lines = notes
+      .split(/\r?\n/)
+      .map(l => l.replace(/^[•\-–*]\s*/, '').trim())
+      .filter(Boolean)
+    if (lines.length === 0) return
+    setFeatures(fs => {
+      const seen = new Set(fs.map(f => f.label.trim().toLowerCase()))
+      const added = lines
+        .filter(l => !seen.has(l.toLowerCase()))
+        .map(label => ({
+          label,
+          included: [true, true, true] as [boolean, boolean, boolean],
+          values: ['', '', ''] as [string, string, string],
+        }))
+      return [...fs, ...added]
+    })
+  }
+
   function toggleFeature(i: number, col: number) {
     setFeatures(fs => fs.map((f, idx) => {
       if (idx !== i) return f
@@ -162,7 +188,10 @@ export default function CarePlanWizard() {
     const received = fromCents(
       live.filter(i => i.paidAmount != null).reduce((a, i) => a + toCents(i.paidAmount as number), 0),
     )
-    const contracted = fromCents(contracts.reduce((a, c) => a + toCents(c.totalValue), 0))
+    // Only agreements that actually stand. Summing every row counted the two
+    // cancelled LHR contracts and reported €4,998 of commitment that does not exist.
+    const standing = contracts.filter(c => c.status === 'PENDING' || c.status === 'SIGNED')
+    const contracted = fromCents(standing.reduce((a, c) => a + toCents(c.totalValue), 0))
     return { billed, received, outstanding: fromCents(toCents(billed) - toCents(received)), contracted }
   }, [invoices, contracts])
 
@@ -340,7 +369,7 @@ export default function CarePlanWizard() {
                   <p className="text-sm text-brown-subtle m-0">Loading…</p>
                 ) : (
                   <dl className="text-sm flex flex-col gap-1.5 m-0">
-                    <SumRow label="Contracted to date" value={fmtEuro(financial.contracted)} />
+                    <SumRow label="Contracted (signed or awaiting)" value={fmtEuro(financial.contracted)} />
                     <SumRow label="Invoiced (incl. VAT)" value={fmtEuro(financial.billed)} />
                     <SumRow label="Received" value={fmtEuro(financial.received)} />
                     <SumRow label="Outstanding" value={fmtEuro(financial.outstanding)} strong />
@@ -409,17 +438,26 @@ export default function CarePlanWizard() {
 
                     <div className="grid grid-cols-2 gap-2">
                       <label className="block">
-                        <span className="block text-[10px] font-bold uppercase tracking-widest text-brown-subtle mb-1">€ / month</span>
-                        <input type="number" step="1" min="0" value={t.monthlyFee}
-                          onChange={e => setTier(t.key, { monthlyFee: parseFloat(e.target.value) || 0 })}
+                        <span className="block text-[10px] font-bold uppercase tracking-widest text-brown-subtle mb-1">Rate € / hr</span>
+                        <input type="number" step="0.01" min="0" value={t.hourlyRate}
+                          onChange={e => setTier(t.key, { hourlyRate: parseFloat(e.target.value) || 0 })}
                           className="!py-1.5 !text-[13px]" />
                       </label>
                       <label className="block">
-                        <span className="block text-[10px] font-bold uppercase tracking-widest text-brown-subtle mb-1">Hours</span>
+                        <span className="block text-[10px] font-bold uppercase tracking-widest text-brown-subtle mb-1">Hours / month</span>
                         <input type="number" step="0.5" min="0" value={t.includedHours}
                           onChange={e => setTier(t.key, { includedHours: parseFloat(e.target.value) || 0 })}
                           className="!py-1.5 !text-[13px]" />
                       </label>
+                    </div>
+
+                    {/* Derived, never typed — the rate is the decision, the fee follows. */}
+                    <div className="mt-2 rounded border border-brown-light bg-white px-2 py-1.5">
+                      <span className="block text-[10px] font-bold uppercase tracking-widest text-brown-subtle">Monthly fee</span>
+                      <span className="font-heading text-lg font-black text-brown-dark tabular-nums">
+                        {fmtEuro(monthlyFee(t))}
+                      </span>
+                      <span className="text-[11px] text-brown-subtle"> = {t.includedHours} × {fmtEuro(t.hourlyRate)}</span>
                     </div>
 
                     <label className="block mt-2">
@@ -427,6 +465,9 @@ export default function CarePlanWizard() {
                       <input type="number" step="1" min="0" value={t.overageRate}
                         onChange={e => setTier(t.key, { overageRate: parseFloat(e.target.value) || 0 })}
                         className="!py-1.5 !text-[13px]" />
+                      <span className="block text-[10px] text-brown-subtle mt-0.5">
+                        Billed beyond the included hours. Invoices read this off the contract.
+                      </span>
                     </label>
 
                     <div
@@ -435,13 +476,13 @@ export default function CarePlanWizard() {
                           : verdict === 'thin' ? 'bg-warning/10 text-warning'
                           : 'bg-success/10 text-success'
                       }`}
-                      title="Monthly fee divided by included hours"
                     >
-                      {t.includedHours > 0 ? `${fmtEuro(effectiveRate(t))}/hr if fully used` : 'No hours included'}
-                      {t.includedHours > 0 && (
+                      {t.includedHours > 0
+                        ? `${(t.includedHours / 8).toFixed(1)} working days/mo`
+                        : 'No hours included'}
+                      {verdict === 'loss' && (
                         <span className="block font-normal opacity-80">
-                          {(t.includedHours / 8).toFixed(1)} working days/mo
-                          {verdict === 'loss' ? ` — under the €${RATE_FLOOR} floor` : ''}
+                          €{t.hourlyRate} is under the €{RATE_FLOOR} floor
                         </span>
                       )}
                     </div>
@@ -564,6 +605,21 @@ export default function CarePlanWizard() {
                 placeholder={'• Hosting, database and deployment\n• Backups and security patches\n• Uptime monitoring\n• Bug fixes on delivered features\n- Content and gallery updates'}
               />
             </label>
+
+            <div className="flex flex-wrap items-center gap-3 mb-2">
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={generateTiersFromNotes}
+                disabled={!notes.trim()}
+                title="Turn each line above into a row of the comparison table"
+              >
+                Generate tiers from this
+              </button>
+              <span className="text-[11px] text-brown-subtle">
+                Adds a comparison row per line, included on every plan. Untick what a plan does not cover.
+              </span>
+            </div>
           </div>
         )}
 
@@ -594,7 +650,7 @@ export default function CarePlanWizard() {
                     <span className="text-sm text-brown-dark">
                       <strong>{t.name} agreed</strong>
                       <span className="block text-[12px] text-brown-subtle">
-                        The contract binds {fmtEuro(t.monthlyFee)}/month with {t.includedHours} included
+                        The contract binds {fmtEuro(monthlyFee(t))}/month with {t.includedHours} included
                         {t.includedHours === 1 ? ' hour' : ' hours'}, and extra hours at {fmtEuro(t.overageRate)}/hr.
                       </span>
                     </span>
@@ -602,10 +658,82 @@ export default function CarePlanWizard() {
                 ))}
               </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
-              <Stat label="Monthly fee" value={fmtEuro(fee)} />
-              <Stat label="Included hours" value={`${hoursNum} / month`} />
-              <Stat label="Effective rate" value={hoursNum > 0 ? `${fmtEuro(effective)}/hr` : '—'} />
+            {/* What the client will see: the three plans, and the comparison beneath. */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+              {tiers.map(t => {
+                const marked = (selectedTier ?? recommended) === t.key
+                return (
+                  <div
+                    key={t.key}
+                    className={`rounded-lg border p-4 text-center ${
+                      marked ? 'border-brown-rust bg-brown-pale/40' : 'border-brown-light bg-white'
+                    }`}
+                  >
+                    <div className={`text-[10px] font-bold uppercase tracking-widest ${marked ? 'text-brown-rust' : 'text-brown-subtle'}`}>
+                      {t.name}
+                    </div>
+                    <div className="font-heading text-2xl font-black text-brown-dark tabular-nums mt-1">
+                      {fmtEuro(monthlyFee(t))}<span className="text-[13px] font-normal text-brown-subtle">/mo</span>
+                    </div>
+                    <div className="text-[12px] text-brown-rust mt-0.5">
+                      {t.includedHours} {t.includedHours === 1 ? 'hr' : 'hrs'} included · {fmtEuro(t.hourlyRate)}/hr
+                    </div>
+                    <div className="text-[11px] text-brown-subtle mt-2 pt-2 border-t border-brown-dark/10">
+                      {t.blurb || '—'}
+                    </div>
+                    {marked && (
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-brown-rust mt-2">
+                        {selectedTier ? 'Agreed' : 'Recommended'}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+
+            <div className="overflow-x-auto border border-brown-light rounded-lg mb-5">
+              <table className="w-full text-[12px] border-collapse min-w-[520px]">
+                <thead>
+                  <tr className="bg-brown-pale/40">
+                    <th className="text-left font-bold p-2 text-brown-subtle w-[38%]">What each plan includes</th>
+                    {tiers.map(t => (
+                      <th key={t.key} className={`p-2 font-bold ${(selectedTier ?? recommended) === t.key ? 'text-brown-rust' : 'text-brown-subtle'}`}>
+                        {t.name}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-t border-brown-light/60">
+                    <th scope="row" className="text-left font-normal p-2 text-brown-dark">Included hours per month</th>
+                    {tiers.map(t => (
+                      <td key={t.key} className={`p-2 text-center tabular-nums ${(selectedTier ?? recommended) === t.key ? 'bg-brown-pale/30 font-semibold' : ''}`}>
+                        {t.includedHours} {t.includedHours === 1 ? 'hr' : 'hrs'}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr className="border-t border-brown-light/60">
+                    <th scope="row" className="text-left font-normal p-2 text-brown-dark">Hours beyond the included total</th>
+                    {tiers.map(t => (
+                      <td key={t.key} className={`p-2 text-center tabular-nums ${(selectedTier ?? recommended) === t.key ? 'bg-brown-pale/30 font-semibold' : ''}`}>
+                        {fmtEuro(t.overageRate)}/hr
+                      </td>
+                    ))}
+                  </tr>
+                  {features.filter(f => f.label.trim()).map((f, i) => (
+                    <tr key={i} className="border-t border-brown-light/60">
+                      <th scope="row" className="text-left font-normal p-2 text-brown-dark">{f.label}</th>
+                      {[0, 1, 2].map(col => (
+                        <td key={col} className={`p-2 text-center ${(selectedTier ?? recommended) === tiers[col].key ? 'bg-brown-pale/30' : ''}`}>
+                          {f.included[col]
+                            ? <span className="text-brown-rust">{f.values[col].trim() || '✓'}</span>
+                            : <span className="text-brown-subtle/50">—</span>}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
             <div className="panel p-4 text-sm text-brown-dark">
               <p className="m-0 mb-2"><strong>{picked.company || picked.name}</strong></p>

@@ -14,12 +14,27 @@
 export interface CareTier {
   key: 'basic' | 'business' | 'enterprise'
   name: string
-  monthlyFee: number
+  /** The rate the plan is built on. With hours, this is what sets the monthly fee. */
+  hourlyRate: number
   includedHours: number
-  /** Rate for hours beyond the included allowance. */
+  /**
+   * Rate for hours beyond the included allowance. Kept separate and stored, because
+   * an invoice raised later for extra hours reads it off the contract rather than
+   * asking anyone to remember what was agreed.
+   */
   overageRate: number
   blurb: string
 }
+
+/**
+ * The monthly fee is derived, never typed.
+ *
+ * When the fee and the hours were both editable it was possible to set €349 against
+ * 30 hours and quietly agree to €11.63 an hour. Deriving it means the rate is the
+ * thing chosen and the fee simply follows, so that number cannot drift out of view.
+ */
+export const monthlyFee = (t: CareTier): number =>
+  Math.round(t.hourlyRate * t.includedHours * 100) / 100
 
 /**
  * One row of the comparison table.
@@ -69,7 +84,7 @@ export const DEFAULT_TIERS: [CareTier, CareTier, CareTier] = [
   {
     key: 'basic',
     name: 'Basic',
-    monthlyFee: 149,
+    hourlyRate: 149,
     includedHours: 1,
     overageRate: 75,
     blurb: 'Online and protected, with a small monthly allocation',
@@ -77,7 +92,7 @@ export const DEFAULT_TIERS: [CareTier, CareTier, CareTier] = [
   {
     key: 'business',
     name: 'Business',
-    monthlyFee: 349,
+    hourlyRate: 87.25,
     includedHours: 4,
     overageRate: 75,
     blurb: 'Everything in Basic, plus campaign work and a 24-hour response',
@@ -85,7 +100,7 @@ export const DEFAULT_TIERS: [CareTier, CareTier, CareTier] = [
   {
     key: 'enterprise',
     name: 'Enterprise',
-    monthlyFee: 549,
+    hourlyRate: 68.75,
     includedHours: 8,
     overageRate: 75,
     blurb: 'Largest allocation, same-day response, priority scheduling',
@@ -121,18 +136,24 @@ function f(
 }
 
 export const effectiveRate = (t: CareTier): number =>
-  t.includedHours > 0 ? t.monthlyFee / t.includedHours : 0
+  t.includedHours > 0 ? monthlyFee(t) / t.includedHours : 0
 
 /** Below this an included hour is worth less than it costs to work. */
 export const RATE_FLOOR = 50
 
 export type RateVerdict = 'good' | 'thin' | 'loss'
 
+/**
+ * Judged on the rate itself, not against the overage rate.
+ *
+ * A larger plan is meant to carry a lower rate than ad-hoc hours — comparing the two
+ * would have flagged every top tier amber for doing exactly what it is designed to do.
+ * What matters is whether an hour is still worth working.
+ */
 export function rateVerdict(t: CareTier): RateVerdict {
-  const e = effectiveRate(t)
   if (t.includedHours === 0) return 'good'
-  if (e < RATE_FLOOR) return 'loss'
-  if (e < t.overageRate) return 'thin'
+  if (t.hourlyRate < RATE_FLOOR) return 'loss'
+  if (t.hourlyRate < RATE_FLOOR * 1.3) return 'thin'
   return 'good'
 }
 
@@ -146,19 +167,36 @@ export function parseCarePlan(value: unknown): CarePlanSpec | null {
   const v = value as Record<string, unknown>
   if (typeof v.monthlyFee !== 'number' && !Array.isArray(v.tiers)) return null
 
+  const healTier = (t: Record<string, unknown>, fallback: CareTier): CareTier => {
+    const hours = Number(t.includedHours) || 0
+    // Tiers written when the fee was typed carry no hourlyRate; derive it back out so
+    // the stored fee is preserved exactly rather than recomputed from a guess.
+    const rate = Number.isFinite(Number(t.hourlyRate)) && Number(t.hourlyRate) > 0
+      ? Number(t.hourlyRate)
+      : hours > 0 ? (Number(t.monthlyFee) || 0) / hours : 0
+    return {
+      key: (t.key as CareTier['key']) ?? fallback.key,
+      name: String(t.name ?? fallback.name),
+      hourlyRate: Math.round(rate * 100) / 100,
+      includedHours: hours,
+      overageRate: Number(t.overageRate) || 0,
+      blurb: String(t.blurb ?? ''),
+    }
+  }
+
   const tiers = Array.isArray(v.tiers) && v.tiers.length === 3
-    ? (v.tiers as CareTier[])
+    ? (v.tiers as Record<string, unknown>[]).map((t, i) => healTier(t, DEFAULT_TIERS[i]))
     // A plan saved with a single fee still renders: it becomes its own middle tier,
     // with the other two left off rather than invented.
     : ([
-        { ...DEFAULT_TIERS[0], monthlyFee: 0, includedHours: 0 },
+        { ...DEFAULT_TIERS[0], hourlyRate: 0, includedHours: 0 },
         {
           ...DEFAULT_TIERS[1],
-          monthlyFee: Number(v.monthlyFee) || 0,
           includedHours: Number(v.includedHours) || 0,
+          hourlyRate: Number(v.includedHours) ? (Number(v.monthlyFee) || 0) / Number(v.includedHours) : 0,
           overageRate: Number(v.hourlyRate) || 0,
         },
-        { ...DEFAULT_TIERS[2], monthlyFee: 0, includedHours: 0 },
+        { ...DEFAULT_TIERS[2], hourlyRate: 0, includedHours: 0 },
       ] as [CareTier, CareTier, CareTier])
 
   const recommended = (['basic', 'business', 'enterprise'] as const).includes(v.recommended as never)
@@ -194,7 +232,7 @@ export function parseCarePlan(value: unknown): CarePlanSpec | null {
     notes: typeof v.notes === 'string' ? v.notes : '',
     includedHours: chosen.includedHours,
     hourlyRate: chosen.overageRate,
-    monthlyFee: chosen.monthlyFee,
+    monthlyFee: monthlyFee(chosen),
     effectiveRate: Math.round(effectiveRate(chosen) * 100) / 100,
   }
 }
