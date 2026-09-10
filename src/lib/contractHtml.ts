@@ -801,7 +801,7 @@ ${includePrintScript ? '<button class="toolbar" onclick="window.print()">Save as
     <div class="section">
       <div class="section-label">15. Entire Agreement</div>
       <p class="clause">This agreement, together with the Engaging UX Design Service Terms &amp; Project Conditions as published on the date of signing, constitutes the entire agreement between the parties in respect of its subject matter, and supersedes all prior proposals, quotations, correspondence, discussions and understandings, whether written or oral. Where this agreement and those Service Terms conflict, this agreement prevails.</p>
-      <p class="clause">Amendments are valid only when agreed in writing by both parties. A change order or superseding agreement issued through the Engaging UX Design contract system and accepted by the client in the same manner as this agreement satisfies that requirement. The applicability of any general terms and conditions of the client is expressly rejected, whether or not referred to in the client&rsquo;s own documents.</p>
+      <p class="clause">Amendments are valid only when agreed in writing by both parties. A scope extension or superseding agreement issued through the Engaging UX Design contract system and accepted by the client in the same manner as this agreement satisfies that requirement. The applicability of any general terms and conditions of the client is expressly rejected, whether or not referred to in the client&rsquo;s own documents.</p>
     </div>
 
   </div>
