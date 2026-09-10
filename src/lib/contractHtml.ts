@@ -428,7 +428,7 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
         <strong>Work beyond the allowance.</strong> Work requested beyond the included hours is agreed in writing before it starts and billed in arrears at ${fmt(c.hourlyRate)} per hour. Engaging UX Design will say so in writing before the allowance is exceeded, and will not incur additional hours without written approval. Work outside the scope of the delivered systems, including new applications or integrations, a visual redesign, migration to a different platform, or any single piece of work reasonably estimated at more than ${threshold} hours, is quoted and agreed as a separate scope extension.
       </div>
       <div class="note">
-        <strong>Billing and notice.</strong> The fee is payable monthly in advance. Either party may end this agreement with ${c.noticeDays} days&rsquo; written notice, and the plan may be moved up or down at any month boundary on the same notice. Rates are reviewed annually and any change is given 60 days&rsquo; written notice.${c.includesInfrastructure ? ' All third-party infrastructure covered by this plan is included in the monthly fee, with no separate pass-through invoices.' : ''}
+        <strong>Billing and notice.</strong> This plan runs monthly. There is no minimum term and no annual commitment: it continues month to month until either party ends it with ${c.noticeDays} days&rsquo; written notice, and the plan may be moved up or down at any month boundary on the same notice. Any change to the fee is given 60 days&rsquo; written notice, and no change applies to a month already paid for. The fee is payable monthly in advance.${c.includesInfrastructure ? ' All third-party infrastructure covered by this plan is included in the monthly fee, with no separate pass-through invoices.' : ''}
       </div>
       <div class="note">
         <strong>If an invoice is overdue.</strong> Delivery or release of outstanding work is paused until payment is received. The website, the business email, the domain name and access to the administration application are not suspended, withheld or allowed to lapse for non-payment. On cancellation, a full export of website files, database and client data is provided at no charge, and no service is switched off before the transfer is complete.
@@ -588,7 +588,7 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
       </table>
       <div class="note">${careAgreed
         ? `The highlighted plan is the one agreed, and is the plan this agreement covers.`
-        : `The highlighted plan is the one recommended for this engagement. No plan is binding until one is chosen and this document is signed.`} Plans may be changed at any month boundary with ${care?.noticeDays ?? 30} days&rsquo; notice.</div>`
+        : `The highlighted plan is the one recommended for this engagement. No plan is binding until one is chosen and this document is signed.`} Plans may be changed at any month boundary with ${care?.noticeDays ?? 30} days&rsquo; notice, and no plan carries a minimum term.</div>`
   })()
 
   // For a care plan the plans and what they include ARE the scope of work, so the
