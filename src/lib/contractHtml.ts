@@ -244,7 +244,11 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
         const detail = [r.note, when].filter(Boolean).join(' · ')
         // Net sits in the Amount column so it reconciles with the excl.-VAT total;
         // the gross is shown alongside because that is what actually gets transferred.
-        return `<tr><td>${esc(r.label)}</td><td>${esc(detail)}${detail ? ' — ' : ''}${fmtEuro(r.gross)} incl. VAT</td><td class="amount">${fmt(r.amount)}</td></tr>`
+        // Only where VAT is actually charged. On a 0% schedule this printed
+        // "€298.63 incl. VAT" beside a note saying amounts exclude VAT, on the same
+        // row, for a business with no BTW registration to charge it under.
+        const gross = c.vatRate > 0 ? `${fmtEuro(r.gross)} incl. VAT` : ''
+        return `<tr><td>${esc(r.label)}</td><td>${esc(detail)}${detail && gross ? ' — ' : ''}${gross}</td><td class="amount">${fmt(r.amount)}</td></tr>`
       })
       .join('')
 
@@ -427,14 +431,24 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
    * does not affect.
    */
   function careTerms(c: NonNullable<PreviewData['carePlan']>): string {
-    const rollover = Math.max(1, Math.round(c.includedHours / 2))
+    // On an agreed plan these are real figures. On a proposal they would be the
+    // recommended tier's, printed against three plans they are wrong for: two hours
+    // of rollover on a one-hour plan is twice the whole allowance.
+    const agreed = !!c.selectedTier
+    const rollover = Math.max(0.5, Math.round((c.includedHours / 2) * 2) / 2)
     const threshold = Math.max(1, Math.round(c.includedHours * 2))
+    const rolloverText = agreed
+      ? `Up to ${rollover} unused ${rollover === 1 ? 'hour carries' : 'hours carry'}`
+      : 'Up to half of the included monthly hours, rounded to the nearest half hour, carry'
+    const thresholdText = agreed
+      ? `more than ${threshold} hours`
+      : "more than twice the selected plan's included monthly hours"
     return `
       <div class="note">
-        <strong>How the included hours work.</strong> Included hours cover technical and design work on the delivered website and application: changes, content and gallery updates, fixes, and feature work within the existing systems. Time is logged in 15-minute increments and reported monthly. Up to ${rollover} unused ${rollover === 1 ? 'hour carries' : 'hours carry'} into the following calendar month only and expire at the end of it. Hours have no cash value and are not refundable, transferable or exchangeable, and any unused hours expire when this agreement ends.
+        <strong>How the included hours work.</strong> Included hours cover technical and design work on the delivered website and application: changes, content and gallery updates, fixes, and feature work within the existing systems. Time is logged in 15-minute increments and reported monthly. ${rolloverText} into the following calendar month only and expire at the end of it. Hours have no cash value and are not refundable, transferable or exchangeable, and any unused hours expire when this agreement ends.
       </div>
       <div class="note">
-        <strong>Work beyond the allowance.</strong> Work requested beyond the included hours is agreed in writing before it starts and billed in arrears at ${fmt(c.hourlyRate)} per hour. Engaging UX Design will say so in writing before the allowance is exceeded, and will not incur additional hours without written approval. Work outside the scope of the delivered systems, including new applications or integrations, a visual redesign, migration to a different platform, or any single piece of work reasonably estimated at more than ${threshold} hours, is quoted and agreed as a separate scope extension.
+        <strong>Work beyond the allowance.</strong> Work requested beyond the included hours is agreed in writing before it starts and billed in arrears at ${fmt(c.hourlyRate)} per hour. Engaging UX Design will say so in writing before the allowance is exceeded, and will not incur additional hours without written approval. Work outside the scope of the delivered systems, including new applications or integrations, a visual redesign, migration to a different platform, or any single piece of work reasonably estimated at ${thresholdText}, is quoted and agreed as a separate scope extension.
       </div>
       <div class="note">
         <strong>Billing and notice.</strong> This plan runs monthly. There is no minimum term and no annual commitment: it continues month to month until either party ends it with ${c.noticeDays} days&rsquo; written notice, and the plan may be moved up or down at any month boundary on the same notice. Any change to the fee is given 60 days&rsquo; written notice, and no change applies to a month already paid for. The fee is payable monthly in advance.${c.includesInfrastructure ? ' All third-party infrastructure covered by this plan is included in the monthly fee, with no separate pass-through invoices.' : ''}
