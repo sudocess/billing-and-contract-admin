@@ -297,69 +297,29 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
 
   // ── Section 5: revision tiers ────────────────────────────────────────
   let revisionTiers = ''
-  if (isCustom) {
+  {
+    // One rule for every kind of project contract. Structural work and new features
+    // are no longer priced here at all: anything that changes the shape of what was
+    // agreed is a scope extension with its own price and its own signature. Leaving
+    // an hourly rate in this section invited exactly the open-ended argument the
+    // scope extension exists to prevent.
+    const TWEAK_ROUNDS = 5
     revisionTiers = `
       <div class="tier-row">
         <div class="tier-index active">1</div>
         <div class="tier-content">
-          <div class="tier-title">Cosmetic changes</div>
-          <div class="tier-desc">Colour, font, spacing, copy adjustments. Unlimited rounds within each phase.</div>
+          <div class="tier-title">Tweaks and minor adjustments</div>
+          <div class="tier-desc">Cosmetic changes to work already delivered: colour, font, spacing, copy, image swaps, and similar adjustments that do not change layout, structure or function. Included, up to <strong>${TWEAK_ROUNDS} rounds per phase</strong>. A round is one consolidated set of requests. Further rounds are quoted separately.</div>
         </div>
-        <span class="tier-badge badge-inc">Included</span>
-      </div>
-      <div class="note" style="margin-top:10px;">This is a Custom Agreement. Tier 2 (structural changes) and Tier 3 (new features) are not included in this contract. Any structural or feature additions require a separate written agreement.</div>`
-  } else if (data.phase === 'phase1') {
-    revisionTiers = `
-      <div class="tier-row">
-        <div class="tier-index active">1</div>
-        <div class="tier-content">
-          <div class="tier-title">Cosmetic changes</div>
-          <div class="tier-desc">Colour, font, spacing, copy adjustments. Unlimited rounds within each phase.</div>
-        </div>
-        <span class="tier-badge badge-inc">Included</span>
+        <span class="tier-badge badge-inc">${TWEAK_ROUNDS} rounds included</span>
       </div>
       <div class="tier-row">
         <div class="tier-index">2</div>
         <div class="tier-content">
-          <div class="tier-title">Structural changes</div>
-          <div class="tier-desc">Not available in Phase 1. The client must raise all structural change requests at Phase 1 sign-off before Phase 2 begins. This is the client's responsibility.</div>
+          <div class="tier-title">Everything else</div>
+          <div class="tier-desc">Layout restructure, new sections or pages, navigation changes, new features, integrations, and any work outside the scope described in section 3. These are not priced in this agreement. Each is quoted and agreed as a separate scope extension, signed before the work begins.</div>
         </div>
-        <span class="tier-badge" style="background:#f0e4d8;color:#9a7a65;">Phase 2+ only</span>
-      </div>
-      <div class="tier-row">
-        <div class="tier-index">3</div>
-        <div class="tier-content">
-          <div class="tier-title">New features</div>
-          <div class="tier-desc">Sign-up flows, booking systems, payments, user data storage. Each requires a separate written addendum. Data storage and app hosting costs billed at cost.</div>
-        </div>
-        <span class="tier-badge badge-add">Addendum required</span>
-      </div>`
-  } else {
-    const rate = data.pricing.tier2Rate
-    revisionTiers = `
-      <div class="tier-row">
-        <div class="tier-index active">1</div>
-        <div class="tier-content">
-          <div class="tier-title">Cosmetic changes</div>
-          <div class="tier-desc">Colour, font, spacing, copy adjustments. Unlimited rounds within each phase.</div>
-        </div>
-        <span class="tier-badge badge-inc">Included</span>
-      </div>
-      <div class="tier-row">
-        <div class="tier-index active">2</div>
-        <div class="tier-content">
-          <div class="tier-title">Structural changes</div>
-          <div class="tier-desc">Layout restructure, new sections, navigation changes. Charged at <strong>€${rate}/hr</strong>. The client is responsible for raising all structural requests before this phase ends.</div>
-        </div>
-        <span class="tier-badge badge-hr">€${rate}/hr</span>
-      </div>
-      <div class="tier-row">
-        <div class="tier-index">3</div>
-        <div class="tier-content">
-          <div class="tier-title">New features</div>
-          <div class="tier-desc">Sign-up flows, booking systems, payments, user data storage. Each requires a separate written addendum. Data storage and app hosting costs billed at cost.</div>
-        </div>
-        <span class="tier-badge badge-add">Addendum required</span>
+        <span class="tier-badge badge-add">Scope extension</span>
       </div>`
   }
 
@@ -401,12 +361,6 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
     : 'Data storage and app hosting costs (Supabase, Vercel, etc.) are billed at cost and invoiced separately.'
 
   // ── Section 7: Google account ────────────────────────────────────────
-  const hasGoogle = !!c.dedicatedEmail
-  const googleEmail = hasGoogle ? esc(c.dedicatedEmail!) : '[to be confirmed]'
-  const credentialTiming = isCustom
-    ? 'For this Custom Agreement, credentials are shared with the client before Phase 1 work begins.'
-    : 'Credentials are shared with the client immediately upon receipt of the project initiation payment.'
-  const googleExtraNote = hasGoogle ? '' : '<br><span style="font-size:10.5px;color:#8a6a55;">The dedicated Google account email will be communicated to the client separately.</span>'
 
   // ── Party blocks ─────────────────────────────────────────────────────
   const clientCompanyLine = c.company ? `${esc(c.company)}<br>` : ''
@@ -632,7 +586,7 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
     </div>`
       : `
     <div class="section">
-      <div class="section-label">5. Revision Scope</div>
+      <div class="section-label">5. Tweaks &amp; Minor Adjustments</div>
       ${revisionTiers}
     </div>`
 
@@ -915,11 +869,7 @@ ${section5}
 
     <div class="section">
       <div class="section-label">7. Technical Infrastructure &amp; Third-Party Services</div>
-      <p class="clause">To develop and deliver this project, Engaging UX Design uses professional third-party platforms on the client's behalf. A dedicated Google account is created for the client to serve as the root identity connecting all services. The client receives full credentials and ownership of this account.</p>
-      <div class="note accent" style="margin-bottom:12px;">
-        <strong>Dedicated Google account:</strong> ${googleEmail}<br>
-        <span style="font-size:10.5px;color:#8a6a55;">${credentialTiming}</span>${googleExtraNote}
-      </div>
+      <p class="clause">To develop and deliver this project, Engaging UX Design uses professional third-party platforms on the client's behalf. Accounts created for the client are the client's own, and credentials are handed over as set out in section 9.</p>
       <table class="addons-table">
         <tbody>
           <tr>
@@ -967,24 +917,12 @@ ${section5}
 
     <div class="section">
       <div class="section-label">8. Client Obligations</div>
-      <p class="clause">The client agrees to designate a single point of contact for all project decisions, to provide written feedback within <strong>5 business days</strong> of each deliverable, and to ensure that all supplied materials are free of third-party intellectual property infringement.</p>
-      <p class="clause"><strong>Content &amp; asset delivery:</strong> The client must provide all required content, copy, images, and brand assets within <strong>14 business days</strong> of contract signing. Engaging UX Design will send a written reminder 3 business days before this deadline, at which point the client may also agree to proceed with licensed placeholder images sourced from Unsplash.</p>
-      <p class="clause">If assets are not delivered and no response is received by the deadline:</p>
-      <table class="addons-table" style="margin-bottom:9px;">
-        <tbody>
-          <tr>
-            <td class="addon-name">Client agrees to Unsplash images<div class="addon-note">Engaging UX Design sources appropriate licensed images and proceeds. A separate invoice is issued for sourcing and integration time.</div></td>
-          </tr>
-          <tr>
-            <td class="addon-name">Client does not respond<div class="addon-note">Project is placed on hold. No further work proceeds until assets are received. Timeline is extended by the days of delay, with no penalty to Engaging UX Design. Projects on hold for more than 60 days may be subject to a restart fee (see section 12).</div></td>
-          </tr>
-        </tbody>
-      </table>
-      <div class="note">Delays caused by late asset delivery are the full responsibility of the client and do not constitute a breach by Engaging UX Design.</div>
+      <p class="clause">The client designates a single point of contact for all project decisions, provides written feedback within <strong>5 business days</strong> of each deliverable, and ensures that all supplied materials are free of third-party intellectual property infringement and that any personal data supplied may lawfully be processed.</p>
+      <p class="clause"><strong>Content and asset delivery.</strong> The client provides all required content, copy, images and brand assets within <strong>14 business days</strong> of contract signing. No reminder is issued. Where the client would prefer to proceed without supplying imagery, Engaging UX Design can source licensed placeholder images, invoiced separately for sourcing and integration time, on the client&rsquo;s written request.</p>
+      <p class="clause"><strong>If the client does not respond within 14 business days.</strong> The project becomes stale. No further work proceeds, the timeline is extended by the full period of delay with no penalty to Engaging UX Design, and the client&rsquo;s project information is retained for <strong>12 months</strong> from the date the project became stale.</p>
+      <p class="clause"><strong>If the project is inactive for 90 days.</strong> The project is archived. Work does not resume unless the client requests it in writing and pays a further project initiation fee at the rate then applicable. Amounts already invoiced remain due. Archiving does not end this agreement; either party may still terminate it under section 12.</p>
+      <div class="note">Delays caused by late asset delivery or by an unanswered request for feedback are the responsibility of the client and do not constitute a breach by Engaging UX Design.</div>
     </div>
-
-    <div class="section">
-      <div class="section-label">9. Intellectual Property</div>
       <p class="clause">Upon receipt of full payment, the client receives full ownership of all custom deliverables. Until full payment is received, all deliverables remain the property of Engaging UX Design. Engaging UX Design retains the right to display completed work in its portfolio and marketing materials.</p>
     </div>
 
@@ -1001,7 +939,7 @@ ${section5}
     <div class="section">
       <div class="section-label">12. Cancellation &amp; Termination</div>
       <p class="clause">Either party may terminate this agreement by written notice of not less than <strong>14 days</strong>. Either party may terminate with immediate effect if the other commits a material breach that remains unremedied 14 days after written notice, or is declared bankrupt, is granted suspension of payments, or ceases to trade.</p>
-      <p class="clause">Upon termination, completed work is invoiced at the applicable milestone rate; outstanding invoices remain due; and deliverables transfer only after full payment. Where the client terminates for convenience, the client owes the fees for work performed and costs already committed up to the termination date, less any costs Engaging UX Design demonstrably saves by not completing the work. The parties agree that this settles any claim under article 7:764 BW. Projects inactive for more than <strong>60 days</strong> may be archived and a restart fee applied.</p>
+      <p class="clause">Upon termination, completed work is invoiced at the applicable milestone rate; outstanding invoices remain due; and deliverables transfer only after full payment. Where the client terminates for convenience, the client owes the fees for work performed and costs already committed up to the termination date, less any costs Engaging UX Design demonstrably saves by not completing the work. The parties agree that this settles any claim under article 7:764 BW. Inactivity and archiving are governed by section 8; a project archived under that section resumes only on payment of a further project initiation fee.</p>
     </div>
 
   </div>
