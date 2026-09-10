@@ -211,6 +211,14 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
 
   const projectTitle = data.projectName ? esc(data.projectName) : 'Service Agreement'
 
+  const PLAN_NAMES: Record<string, string> = {
+    basic: 'Basic plan',
+    business: 'Business plan',
+    enterprise: 'Enterprise plan',
+    custom: 'Custom pricing',
+  }
+  const planLabel = PLAN_NAMES[(data.plan || '').toLowerCase()] || ''
+
   // ── Phase scope note (Section 3) ──────────────────────────────────────
   let phaseNote = ''
   if (isCustom) {
@@ -611,6 +619,7 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
         <div class="detail-cell">
           <div class="detail-cell-label">Total project value</div>
           <div class="detail-cell-value accent">${fmt(data.pricing.total)} <span style="font-size:9.5px;font-weight:400;color:#9a7a65;">excl. VAT</span></div>
+          ${planLabel ? `<div class="detail-cell-sub">${esc(planLabel)}</div>` : ''}
         </div>`
 
   const paymentLabel = docKind === 'care' ? '4. Fees &amp; Billing' : '4. Payment Schedule'
@@ -775,6 +784,7 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
   .detail-cell-label { font-size: 9px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #9a7a65; margin-bottom: 3px; }
   .detail-cell-value { font-size: 12.5px; font-weight: 600; color: #1c1008; }
   .detail-cell-value.accent { color: #8b3a1e; }
+  .detail-cell-sub { font-size: 9.5px; font-weight: 600; color: #9a7a65; margin-top: 3px; letter-spacing: 0.04em; text-transform: uppercase; }
   .scope-text { font-size: 12.5px; color: #3b2110; line-height: 1.75; }
   .scope-heading { font-size: 12.5px; font-weight: 700; color: #1c1008; margin: 14px 0 6px; }
   .scope-heading:first-child { margin-top: 0; }

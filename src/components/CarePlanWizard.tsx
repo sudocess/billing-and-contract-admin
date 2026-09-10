@@ -861,10 +861,9 @@ export default function CarePlanWizard() {
 
             <ContractDocPreview data={previewData} />
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
               <DeliveryCard icon="↓" label="Download EN" sub="PDF · English version" onClick={() => generate('en')} />
               <DeliveryCard icon="↓" label="Download NL" sub="PDF · Dutch version" onClick={() => generate('nl')} />
-              <DeliveryCard icon="✍" label="Send for signature" sub="Save first, then send from the contract page" onClick={save} />
             </div>
 
             {error && (
