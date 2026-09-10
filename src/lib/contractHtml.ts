@@ -40,6 +40,10 @@ export type PreviewData = {
     noticeDays: number
     includesInfrastructure: boolean
     notes: string
+    tiers?: { key: string; name: string; monthlyFee: number; includedHours: number; overageRate: number; blurb: string }[]
+    recommended?: string
+    selectedTier?: string | null
+    features?: { label: string; included?: [boolean, boolean, boolean]; values: [string, string, string] }[]
   } | null
   /**
    * Registration numbers as they stood when this contract was written, captured into
@@ -415,8 +419,10 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
   const docKind: 'care' | 'extension' | 'project' =
     care ? 'care' : extMatch ? 'extension' : 'project'
 
+  // A proposal offers three plans and binds none; an agreement states the one chosen.
+  const careAgreed = !!care?.selectedTier
   const docTitle =
-    docKind === 'care' ? 'Care Plan Agreement'
+    docKind === 'care' ? (careAgreed ? 'Care Plan Agreement' : 'Care Plan Proposal')
       : docKind === 'extension' ? 'Scope Extension'
       : 'Service Agreement'
 
@@ -429,12 +435,12 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
     docKind === 'care' && care
       ? `
         <div class="detail-cell">
-          <div class="detail-cell-label">Monthly fee</div>
-          <div class="detail-cell-value accent">${fmt(care.monthlyFee)} <span style="font-size:9.5px;font-weight:400;color:#9a7a65;">per month, excl. VAT</span></div>
+          <div class="detail-cell-label">${careAgreed ? 'Monthly fee' : 'Plans offered'}</div>
+          <div class="detail-cell-value accent">${careAgreed ? `${fmt(care.monthlyFee)} <span style="font-size:9.5px;font-weight:400;color:#9a7a65;">per month, excl. VAT</span>` : `${(care.tiers ?? []).length || 3} to choose from`}</div>
         </div>
         <div class="detail-cell">
-          <div class="detail-cell-label">Included hours</div>
-          <div class="detail-cell-value">${care.includedHours} hours per month</div>
+          <div class="detail-cell-label">${careAgreed ? 'Included hours' : 'Recommended'}</div>
+          <div class="detail-cell-value">${careAgreed ? `${care.includedHours} hours per month` : esc((care.tiers ?? []).find(t => t.key === care.recommended)?.name ?? '')}</div>
         </div>
         <div class="detail-cell">
           <div class="detail-cell-label">Starts</div>
@@ -471,7 +477,10 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
   const paymentLabel = docKind === 'care' ? '4. Fees &amp; Billing' : '4. Payment Schedule'
 
   const paymentBlock =
-    docKind === 'care' && care
+    docKind === 'care' && care && !careAgreed
+      ? `
+      <div class="note">No fee is payable until a plan is chosen. Once a plan is agreed, the fee for that plan is billed monthly in advance, and hours beyond its included allowance are agreed in writing before the work starts and billed in arrears at the rate shown for that plan. Either party may end the plan with ${care.noticeDays} days&rsquo; written notice.</div>`
+      : docKind === 'care' && care
       ? `
       <table class="payment-table">
         <thead>
@@ -506,6 +515,51 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
       : docKind === 'care' && care?.includesInfrastructure
         ? `<div class="note accent" style="margin-top:10px;">Hosting, the database, domain registration and business email are included in the monthly fee and are not invoiced separately.</div>`
         : ''
+
+  /* The three-option comparison. Included hours and the extra-hour rate are emitted
+     from the tier figures rather than kept as editable rows, so the table cannot
+     contradict the prices printed directly above it. */
+  const tierTable = (() => {
+    const t = care?.tiers
+    if (!t || t.length !== 3) return ''
+    const highlight = care?.selectedTier ?? care?.recommended
+    const cls = (k: string) => (k === highlight ? ' class="rec"' : '')
+    const head = t.map(x => `<th${cls(x.key)}>${esc(x.name)}</th>`).join('')
+    const price = t.map(x => `<td${cls(x.key)}><strong>${fmt(x.monthlyFee)}</strong><br><span class="muted">per month</span></td>`).join('')
+    const hrs = t.map(x => `<td${cls(x.key)}>${x.includedHours} ${x.includedHours === 1 ? 'hour' : 'hours'}</td>`).join('')
+    const over = t.map(x => `<td${cls(x.key)}>${fmt(x.overageRate)}/hr</td>`).join('')
+    const blurb = t.map(x => `<td${cls(x.key)}><span class="muted">${esc(x.blurb)}</span></td>`).join('')
+    const rows = (care?.features ?? [])
+      .filter(f => f.label?.trim())
+      .map(f => `<tr><th scope="row">${esc(f.label)}</th>${[0, 1, 2].map(i => {
+        const on = f.included ? f.included[i] !== false : !!String(f.values[i] ?? '').trim()
+        return `<td${cls(t[i].key)}>${on ? esc(String(f.values[i] ?? '').trim() || '\u2713') : '\u2014'}</td>`
+      }).join('')}</tr>`)
+      .join('')
+
+    return `
+      <table class="payment-table tier-table" style="margin-top:10px;">
+        <thead><tr><th></th>${head}</tr></thead>
+        <tbody>
+          <tr><th scope="row">Monthly fee</th>${price}</tr>
+          <tr><th scope="row">Included hours per month</th>${hrs}</tr>
+          <tr><th scope="row">Hours beyond the included total</th>${over}</tr>
+          ${rows}
+          <tr><th scope="row"></th>${blurb}</tr>
+        </tbody>
+      </table>
+      <div class="note">${careAgreed
+        ? `The highlighted plan is the one agreed, and is the plan this agreement covers.`
+        : `The highlighted plan is the one recommended for this engagement. No plan is binding until one is chosen and this document is signed.`} Plans may be changed at any month boundary with ${care?.noticeDays ?? 30} days&rsquo; notice.</div>`
+  })()
+
+  // For a care plan the plans and what they include ARE the scope of work, so the
+  // comparison sits inside section 3 rather than taking a number of its own — which
+  // would have pushed every later section along by one for this kind only.
+  const scopeLabel =
+    docKind === 'care' && tierTable ? '3. Plans &amp; What They Include'
+      : docKind === 'extension' ? '3. Additional Scope of Work'
+      : '3. Scope of Work'
 
   const section5 =
     docKind === 'care' && care
@@ -587,7 +641,12 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
   .scope-sublist > li::before {
     content: '\\2013'; position: absolute; left: -12px; top: 0; color: #a8836a;
   }
-  .payment-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 4px; }
+  .tier-table td, .tier-table thead th { text-align: center; }
+.tier-table tbody th { text-align: left; font-weight: 400; width: 34%; color: #3b2110; padding: 9px 12px; border-bottom: 1px solid #ecddd4; font-size: 12px; }
+.tier-table .rec { background: #fdf0e8; }
+.tier-table thead th.rec { color: #8b3a1e; }
+.tier-table tr:last-child td { font-weight: 400; background: transparent; }
+.payment-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 4px; }
   .payment-table thead tr { background: #f7ede2; }
   .payment-table th { font-size: 9px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #8a6a55; padding: 8px 12px; text-align: left; border-bottom: 1px solid #d4bfb0; }
   .payment-table td { padding: 9px 12px; color: #3b2110; border-bottom: 1px solid #f0e4d8; vertical-align: top; }
@@ -750,8 +809,9 @@ ${includePrintScript ? '<button class="toolbar" onclick="window.print()">Save as
     </div>
 
     <div class="section">
-      <div class="section-label">3. Scope of Work</div>
+      <div class="section-label">${scopeLabel}</div>
       ${renderDeliverables(data.deliverables)}
+      ${tierTable}
       ${docKind === 'project' && phaseNote ? `<div class="note" style="margin-top:10px;">${phaseNote}</div>` : ''}
       ${scopeNote}
     </div>

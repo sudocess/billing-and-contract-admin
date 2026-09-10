@@ -5,6 +5,10 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { fmtEuro, toCents, fromCents } from '@/lib/installments'
 import type { PastInvoice } from '@/components/ContractWizard'
+import {
+  DEFAULT_TIERS, DEFAULT_FEATURES, effectiveRate, rateVerdict, RATE_FLOOR,
+  type CareTier, type CareFeature,
+} from '@/lib/carePlan'
 
 /**
  * Care plan builder.
@@ -63,11 +67,15 @@ export default function CarePlanWizard() {
   const [invoices, setInvoices] = useState<PastInvoice[]>([])
   const [loadingSummary, setLoadingSummary] = useState(false)
 
-  // The two numbers the owner actually decides.
-  const [hours, setHours] = useState('4')
-  const [rate, setRate] = useState('75')
-  // Derived by default, overridable — a round number is easier to sell than 4 × 75.
-  const [feeOverride, setFeeOverride] = useState('')
+  // Three tiers quoted side by side, one marked as the recommendation.
+  const [tiers, setTiers] = useState<CareTier[]>(() => DEFAULT_TIERS.map(t => ({ ...t })))
+  const [recommended, setRecommended] = useState<CareTier['key']>('business')
+  // Null while this is a proposal. Set once the client has picked, and then it is the
+  // tier the contract binds — the document changes from offering three to stating one.
+  const [selectedTier, setSelectedTier] = useState<CareTier['key'] | null>(null)
+  const [features, setFeatures] = useState<CareFeature[]>(() =>
+    DEFAULT_FEATURES.map(f => ({ ...f, values: [...f.values] as [string, string, string] })),
+  )
 
   const [startDate, setStartDate] = useState(() => {
     const d = new Date()
@@ -118,15 +126,35 @@ export default function CarePlanWizard() {
     return () => { cancelled = true }
   }, [picked])
 
-  const hoursNum = parseFloat(hours) || 0
-  const rateNum = parseFloat(rate) || 0
-  const derivedFee = fromCents(Math.round(toCents(hoursNum * rateNum)))
-  const fee = feeOverride.trim() === '' ? derivedFee : (parseFloat(feeOverride) || 0)
-  const effective = hoursNum > 0 ? fee / hoursNum : 0
-  // Below this the plan is losing money once a realistic cost floor is applied.
-  const FLOOR = 50
-  const effectiveTone =
-    hoursNum === 0 ? 'neutral' : effective >= rateNum ? 'good' : effective >= FLOOR ? 'warn' : 'bad'
+  const chosen = tiers.find(t => t.key === (selectedTier ?? recommended)) ?? tiers[1]
+  const isProposal = selectedTier === null
+  const hoursNum = chosen.includedHours
+  const rateNum = chosen.overageRate
+  const fee = chosen.monthlyFee
+  const effective = effectiveRate(chosen)
+
+  function setTier(key: CareTier['key'], patch: Partial<CareTier>) {
+    setTiers(ts => ts.map(t => (t.key === key ? { ...t, ...patch } : t)))
+  }
+  function setFeature(i: number, patch: Partial<CareFeature>) {
+    setFeatures(fs => fs.map((f, idx) => (idx === i ? { ...f, ...patch } : f)))
+  }
+  function setFeatureValue(i: number, col: number, value: string) {
+    setFeatures(fs => fs.map((f, idx) => {
+      if (idx !== i) return f
+      const values = [...f.values] as [string, string, string]
+      values[col] = value
+      return { ...f, values }
+    }))
+  }
+  function toggleFeature(i: number, col: number) {
+    setFeatures(fs => fs.map((f, idx) => {
+      if (idx !== i) return f
+      const included = [...f.included] as [boolean, boolean, boolean]
+      included[col] = !included[col]
+      return { ...f, included }
+    }))
+  }
 
   const financial = useMemo(() => {
     const live = invoices.filter(i => i.status !== 'CANCELLED')
@@ -150,14 +178,20 @@ export default function CarePlanWizard() {
     try {
       const code = `${new Date().getFullYear()}-${picked.clientCode}-CARE${String(Date.now()).slice(-4)}`
       const carePlan = {
-        includedHours: hoursNum,
-        hourlyRate: rateNum,
-        monthlyFee: fee,
-        effectiveRate: Math.round(effective * 100) / 100,
+        tiers,
+        recommended,
+        selectedTier,
+        features: features.filter(f => f.label.trim()),
         startDate,
         noticeDays: parseInt(noticeDays) || 30,
         includesInfrastructure: includesInfra,
         notes: notes.trim(),
+        // Mirrors of the recommended tier, so the billing sections of the contract
+        // need no tier logic of their own.
+        includedHours: hoursNum,
+        hourlyRate: rateNum,
+        monthlyFee: fee,
+        effectiveRate: Math.round(effective * 100) / 100,
       }
       const res = await fetch('/api/contracts', {
         method: 'POST',
@@ -343,66 +377,160 @@ export default function CarePlanWizard() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-              <label className="block">
-                <span className="block text-xs font-bold uppercase tracking-wider text-brown-muted mb-1.5">
-                  Included hours / month
-                </span>
-                <input type="number" step="0.5" min="0" value={hours} onChange={e => setHours(e.target.value)} />
-              </label>
-              <label className="block">
-                <span className="block text-xs font-bold uppercase tracking-wider text-brown-muted mb-1.5">
-                  Rate the plan is built on (€/hr)
-                </span>
-                <input type="number" step="1" min="0" value={rate} onChange={e => setRate(e.target.value)} />
-              </label>
-              <label className="block">
-                <span className="block text-xs font-bold uppercase tracking-wider text-brown-muted mb-1.5">
-                  Monthly fee (€)
-                </span>
-                <input
-                  type="number" step="0.01" min="0"
-                  value={feeOverride === '' ? derivedFee.toFixed(2) : feeOverride}
-                  onChange={e => setFeeOverride(e.target.value)}
-                />
-                <span className="block text-[11px] text-brown-subtle mt-1">
-                  {feeOverride.trim() === '' ? `${hoursNum} × €${rateNum} — edit to round it` : 'Overridden'}
-                </span>
-              </label>
+            {/* Three tiers, quoted side by side. The effective rate under each is the
+                number that decides whether the plan is worth running, and it is the one
+                nobody computes by hand. */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
+              {tiers.map((t, col) => {
+                const verdict = rateVerdict(t)
+                const isRec = recommended === t.key
+                return (
+                  <div
+                    key={t.key}
+                    className={`rounded-lg border p-3 ${
+                      isRec ? 'border-brown-rust bg-brown-pale/40' : 'border-brown-light bg-white'
+                    }`}
+                  >
+                    <label className="flex items-center gap-2 mb-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="recommended"
+                        checked={isRec}
+                        onChange={() => setRecommended(t.key)}
+                        className="!w-4 !h-4"
+                      />
+                      <input
+                        type="text"
+                        value={t.name}
+                        onChange={e => setTier(t.key, { name: e.target.value })}
+                        className="!py-1 !text-[13px] !font-semibold"
+                      />
+                    </label>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <label className="block">
+                        <span className="block text-[10px] font-bold uppercase tracking-widest text-brown-subtle mb-1">€ / month</span>
+                        <input type="number" step="1" min="0" value={t.monthlyFee}
+                          onChange={e => setTier(t.key, { monthlyFee: parseFloat(e.target.value) || 0 })}
+                          className="!py-1.5 !text-[13px]" />
+                      </label>
+                      <label className="block">
+                        <span className="block text-[10px] font-bold uppercase tracking-widest text-brown-subtle mb-1">Hours</span>
+                        <input type="number" step="0.5" min="0" value={t.includedHours}
+                          onChange={e => setTier(t.key, { includedHours: parseFloat(e.target.value) || 0 })}
+                          className="!py-1.5 !text-[13px]" />
+                      </label>
+                    </div>
+
+                    <label className="block mt-2">
+                      <span className="block text-[10px] font-bold uppercase tracking-widest text-brown-subtle mb-1">Extra hours € / hr</span>
+                      <input type="number" step="1" min="0" value={t.overageRate}
+                        onChange={e => setTier(t.key, { overageRate: parseFloat(e.target.value) || 0 })}
+                        className="!py-1.5 !text-[13px]" />
+                    </label>
+
+                    <div
+                      className={`mt-2 rounded px-2 py-1.5 text-[11px] font-semibold ${
+                        verdict === 'loss' ? 'bg-danger/10 text-danger'
+                          : verdict === 'thin' ? 'bg-warning/10 text-warning'
+                          : 'bg-success/10 text-success'
+                      }`}
+                      title="Monthly fee divided by included hours"
+                    >
+                      {t.includedHours > 0 ? `${fmtEuro(effectiveRate(t))}/hr if fully used` : 'No hours included'}
+                      {t.includedHours > 0 && (
+                        <span className="block font-normal opacity-80">
+                          {(t.includedHours / 8).toFixed(1)} working days/mo
+                          {verdict === 'loss' ? ` — under the €${RATE_FLOOR} floor` : ''}
+                        </span>
+                      )}
+                    </div>
+
+                    <input
+                      type="text"
+                      value={t.blurb}
+                      onChange={e => setTier(t.key, { blurb: e.target.value })}
+                      placeholder="One line for the client"
+                      className="!py-1 !text-[11px] mt-2"
+                    />
+                  </div>
+                )
+              })}
             </div>
 
-            {/* The number that matters, and the one nobody computes by hand. */}
-            <div
-              className={`rounded-lg border p-4 mb-5 ${
-                effectiveTone === 'bad'
-                  ? 'border-danger/40 bg-danger/5'
-                  : effectiveTone === 'warn'
-                    ? 'border-warning/40 bg-warning/5'
-                    : 'border-success/40 bg-success/5'
-              }`}
-            >
-              <div className="flex flex-wrap items-baseline justify-between gap-3">
-                <span className="text-sm text-brown-dark">
-                  If the client uses every included hour, you are working for
+            {/* The comparison the client actually reads. Included hours and the extra-hour
+                rate are not rows here — they are printed from the tier figures above, so
+                the table can never contradict the prices. */}
+            <div className="mb-5">
+              <div className="flex items-baseline justify-between gap-3 mb-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-brown-muted">
+                  What each plan includes
                 </span>
-                <span className="font-heading text-2xl font-black text-brown-dark tabular-nums">
-                  {hoursNum > 0 ? `${fmtEuro(effective)}/hr` : '—'}
-                </span>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm !py-1 !text-[11px]"
+                  onClick={() => setFeatures(fs => [...fs, { label: '', included: [true, true, true], values: ['', '', ''] }])}
+                >
+                  Add row
+                </button>
               </div>
-              {hoursNum > 0 && (
-                <p className="text-[13px] text-brown-subtle mt-1.5 mb-0">
-                  {effectiveTone === 'bad' && (
-                    <>That is below a €{FLOOR}/hr floor. {hoursNum} hrs at €{rateNum} is {fmtEuro(hoursNum * rateNum)} of work for {fmtEuro(fee)}.</>
-                  )}
-                  {effectiveTone === 'warn' && (
-                    <>Above the floor but below the €{rateNum} rate this plan is built on — a {Math.round((1 - effective / rateNum) * 100)}% discount.</>
-                  )}
-                  {effectiveTone === 'good' && (
-                    <>At or above the €{rateNum} rate this plan is built on.</>
-                  )}
-                  {' '}That is {(hoursNum / 8).toFixed(1)} working days a month.
-                </p>
-              )}
+
+              <div className="overflow-x-auto border border-brown-light rounded-lg">
+                <table className="w-full text-[12px] border-collapse min-w-[560px]">
+                  <thead>
+                    <tr>
+                      <th className="text-left font-bold p-2 text-brown-subtle">Feature</th>
+                      {tiers.map(t => (
+                        <th key={t.key} className={`text-left font-bold p-2 ${recommended === t.key ? 'text-brown-rust' : 'text-brown-subtle'}`}>
+                          {t.name || '—'}
+                        </th>
+                      ))}
+                      <th className="w-8" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {features.map((f, i) => (
+                      <tr key={i} className="border-t border-brown-light/60">
+                        <td className="p-1.5">
+                          <input type="text" value={f.label}
+                            onChange={e => setFeature(i, { label: e.target.value })}
+                            className="!py-1 !text-[12px]" placeholder="Feature" />
+                        </td>
+                        {[0, 1, 2].map(col => (
+                          <td key={col} className={`p-1.5 ${recommended === tiers[col].key ? 'bg-brown-pale/30' : ''}`}>
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                type="checkbox"
+                                checked={f.included[col]}
+                                onChange={() => toggleFeature(i, col)}
+                                title={f.included[col] ? 'Included in this plan' : 'Not included'}
+                                className="!w-3.5 !h-3.5 shrink-0"
+                              />
+                              <input
+                                type="text"
+                                value={f.values[col]}
+                                onChange={e => setFeatureValue(i, col, e.target.value)}
+                                disabled={!f.included[col]}
+                                className="!py-1 !text-[12px] disabled:opacity-40"
+                                placeholder={f.included[col] ? '✓' : '—'}
+                              />
+                            </div>
+                          </td>
+                        ))}
+                        <td className="p-1.5 text-center">
+                          <button type="button" title="Remove row"
+                            onClick={() => setFeatures(fs => fs.filter((_, idx) => idx !== i))}
+                            className="text-brown-subtle hover:text-danger text-sm leading-none">×</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-[11px] text-brown-subtle mt-2 mb-0">
+                Included hours and the extra-hour rate are printed automatically from the tier
+                figures above, so they cannot drift out of step with the prices.
+              </p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
@@ -443,6 +571,37 @@ export default function CarePlanWizard() {
           <div>
             <h2 className="wstep-heading">Review</h2>
             <p className="wstep-tagline">Check the figures before this becomes a contract.</p>
+
+            <div className="rounded-lg border border-brown-light bg-brown-pale/25 p-4 mb-5">
+              <div className="text-xs font-bold uppercase tracking-wider text-brown-muted mb-2">
+                Is a plan agreed yet?
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input type="radio" name="agreed" checked={selectedTier === null}
+                    onChange={() => setSelectedTier(null)} className="!w-4 !h-4 mt-0.5" />
+                  <span className="text-sm text-brown-dark">
+                    <strong>Not yet — send as a proposal.</strong>
+                    <span className="block text-[12px] text-brown-subtle">
+                      The document shows all three plans with {tiers.find(t => t.key === recommended)?.name} highlighted, and states no single fee.
+                    </span>
+                  </span>
+                </label>
+                {tiers.map(t => (
+                  <label key={t.key} className="flex items-start gap-2.5 cursor-pointer">
+                    <input type="radio" name="agreed" checked={selectedTier === t.key}
+                      onChange={() => setSelectedTier(t.key)} className="!w-4 !h-4 mt-0.5" />
+                    <span className="text-sm text-brown-dark">
+                      <strong>{t.name} agreed</strong>
+                      <span className="block text-[12px] text-brown-subtle">
+                        The contract binds {fmtEuro(t.monthlyFee)}/month with {t.includedHours} included
+                        {t.includedHours === 1 ? ' hour' : ' hours'}, and extra hours at {fmtEuro(t.overageRate)}/hr.
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
               <Stat label="Monthly fee" value={fmtEuro(fee)} />
               <Stat label="Included hours" value={`${hoursNum} / month`} />
@@ -477,7 +636,7 @@ export default function CarePlanWizard() {
             </button>
           ) : (
             <button type="button" className="btn btn-primary" onClick={save} disabled={saving || !picked}>
-              {saving ? 'Saving…' : 'Save care plan'}
+              {saving ? 'Saving…' : isProposal ? 'Save proposal' : 'Save agreement'}
             </button>
           )}
         </div>
