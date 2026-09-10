@@ -285,7 +285,9 @@ export default function ViewContractPage() {
                 {contract.clientCompany || contract.clientName}
               </div>
               <div className="text-sm text-brown-subtle">
-                {contract.clientCompany ? `Signed to ${contract.clientName}` : 'Individual client'}
+                {/* Not "Signed to". This line names the contact at the company, and it
+                    printed on drafts, saying a contract was signed that was not. */}
+                {contract.clientCompany ? `Attn. ${contract.clientName}` : 'Individual client'}
                 {contract.clientEmail && <> · <a href={`mailto:${contract.clientEmail}`} className="text-brown-rust hover:underline">{contract.clientEmail}</a></>}
               </div>
             </div>

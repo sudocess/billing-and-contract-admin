@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { readSession } from '@/lib/auth'
 import { recordEvent } from '@/lib/contractEvents'
 import { sendContractEmail, buildContractSummaryHTML } from '@/lib/email'
+import { emailOrigin } from '@/lib/appUrl'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,15 +43,18 @@ export async function POST(
 
   const subject =
     body.subject?.trim() ||
-    `Your contract ${contract.contractCode} — Engaging UX Design`
+    `Your contract ${contract.contractCode}, Engaging UX Design`
 
   const message =
     body.message?.trim() ||
-    `Hi ${contract.clientName.split(' ')[0]},\n\nPlease find your service agreement below. Click the button to review the full contract.\n\nLet me know if you have any questions or change requests.\n\nBest,\nCess Garcia - de Laat — Engaging UX Design`
+    `Hi ${contract.clientName.split(' ')[0]},\n\nPlease find your service agreement below. Click the button to review the full contract.\n\nLet me know if you have any questions or change requests.\n\nBest,\nCess Garcia - de Laat, Engaging UX Design`
 
-  const origin =
-    req.headers.get('origin') ||
-    (req.headers.get('host') ? `https://${req.headers.get('host')}` : '')
+  // An empty origin used to produce `/contract-view/CODE`, a relative path, which is
+  // not a link once it is inside an email client.
+  const { origin, error: originError } = emailOrigin(req)
+  if (originError) {
+    return NextResponse.json({ error: originError }, { status: 500 })
+  }
   const viewUrl = `${origin}/contract-view/${encodeURIComponent(contract.contractCode)}`
 
   try {
@@ -70,6 +74,9 @@ export async function POST(
       message,
       contractSummaryHtml: summaryHtml,
       viewUrl,
+      // This link goes to the read-only preview. Signing happens through Send for
+      // signature, which is a different button and a different page.
+      ctaLabel: 'Review your contract',
     })
 
     const updated = await prisma.contract.update({

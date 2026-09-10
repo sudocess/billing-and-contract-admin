@@ -11,6 +11,12 @@ const transporter = nodemailer.createTransport({
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
+  // Fail fast and say why. The defaults are minutes long, far past the lifetime of a
+  // serverless function, so a stalled handshake used to end as a gateway timeout with
+  // no body at all, which reaches the operator as "Failed to send" and nothing more.
+  connectionTimeout: 10_000,
+  greetingTimeout: 10_000,
+  socketTimeout: 20_000,
 })
 
 interface SendInvoiceEmailOptions {
@@ -326,10 +332,23 @@ interface SendContractEmailOptions {
   message: string
   contractSummaryHtml: string
   viewUrl: string
+  /**
+   * What the button says. It has to match where the button goes: the signing route
+   * links to a page with a real signature field, the send-to-client route links to a
+   * read-only preview that tells the reader to reply by email. Both used to promise
+   * "Review & sign your contract", so half the clients who clicked it found no way to
+   * sign and no explanation.
+   */
+  ctaLabel?: string
 }
 
 export async function sendContractEmail(opts: SendContractEmailOptions) {
-  const html = buildContractEmailWrapper(opts.contractSummaryHtml, opts.message, opts.viewUrl)
+  const html = buildContractEmailWrapper(
+    opts.contractSummaryHtml,
+    opts.message,
+    opts.viewUrl,
+    opts.ctaLabel || 'Review your contract',
+  )
 
   await transporter.sendMail({
     from: process.env.SMTP_FROM || 'Engaging UX Design <info@engaginguxdesign.com>',
@@ -379,7 +398,12 @@ export function buildContractSummaryHTML(input: {
     </table>`
 }
 
-function buildContractEmailWrapper(summaryBody: string, personalMessage: string, viewUrl: string): string {
+function buildContractEmailWrapper(
+  summaryBody: string,
+  personalMessage: string,
+  viewUrl: string,
+  ctaLabel: string,
+): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
@@ -414,7 +438,7 @@ ${personalMessage ? `<!-- Personal message -->
 <!-- CTA -->
 <tr><td align="center" style="padding:8px 32px 24px;">
   <a href="${viewUrl}" style="display:inline-block;background:#b5590a;color:#ffffff;font-family:Helvetica,Arial,sans-serif;font-size:14px;font-weight:bold;text-decoration:none;padding:14px 28px;border-radius:8px;">
-    Review &amp; sign your contract →
+    ${escapeHtml(ctaLabel)} →
   </a>
   <div style="font-family:Helvetica,Arial,sans-serif;font-size:11px;color:#7a5a40;margin-top:10px;">
     Or open in your browser:<br>
