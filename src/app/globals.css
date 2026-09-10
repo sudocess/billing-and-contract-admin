@@ -177,6 +177,31 @@ label {
 }
 
 /* ── History Table ── */
+/* ── Skeleton loading ──────────────────────────────────────────────────────
+   One class, sized with utilities, shaped to match whatever is actually coming.
+   The sweep is warm rather than the usual grey on grey, and slow enough to read
+   as waiting rather than as urgency. */
+.skeleton {
+  position: relative;
+  background: var(--color-brown-light);
+  overflow: hidden;
+}
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 20%, rgba(255, 255, 255, 0.55) 50%, transparent 80%);
+  transform: translateX(-100%);
+  animation: skeleton-sweep 1.6s ease-in-out infinite;
+}
+@keyframes skeleton-sweep {
+  100% { transform: translateX(100%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Still legible as loading by its shape alone. */
+  .skeleton::after { animation: none; display: none; }
+}
+
 /* ── Plan comparison table (care plan wizard, step 3) ──────────────────────
    Zebra rather than hover alone: the problem is losing a row while reading it,
    and hover only helps once a pointer is already on the row — no use on a

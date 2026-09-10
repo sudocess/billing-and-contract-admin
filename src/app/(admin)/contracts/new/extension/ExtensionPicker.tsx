@@ -110,7 +110,26 @@ export default function ExtensionPicker() {
         </div>
       )}
 
-      {loading && <p className="text-sm text-brown-subtle">Loading…</p>}
+      <p className="sr-only" role="status">
+        {loading ? 'Loading contracts.' : `${rows.length} contracts loaded.`}
+      </p>
+      {loading && (
+        <div className="flex flex-col gap-5" aria-hidden="true">
+          {Array.from({ length: 2 }).map((_, g) => (
+            <div key={g}>
+              <div className="skeleton h-4 w-32 rounded mb-2" />
+              <div className="flex flex-col gap-1.5">
+                {Array.from({ length: 2 }).map((_, i) => (
+                  <div key={i} className="rounded-lg border border-brown-light bg-white px-4 py-3">
+                    <div className="skeleton h-4 w-48 rounded mb-2" />
+                    <div className="skeleton h-3 w-56 rounded" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {!loading && groups.length === 0 && (
         <p className="text-sm text-brown-subtle">

@@ -1,6 +1,8 @@
 import Link from 'next/link'
+import TypeCardLink from '@/components/TypeCardLink'
 
 export const dynamic = 'force-dynamic'
+export const metadata = { title: 'New contract, Engaging UX Design' }
 
 /**
  * What kind of contract is this?
@@ -60,20 +62,7 @@ export default function ChooseContractKindPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {KINDS.map(k => (
-              <Link
-                key={k.href}
-                href={k.href}
-                className="type-card text-left flex flex-col gap-2 no-underline"
-              >
-                <span className="font-heading text-base font-bold text-brown-dark">{k.title}</span>
-                <span className="text-[13px] font-semibold text-brown-dark/80 leading-snug">
-                  {k.lead}
-                </span>
-                <span className="text-[13px] text-brown-subtle leading-relaxed flex-1">{k.desc}</span>
-                <span className="text-[10px] font-bold uppercase tracking-widest text-brown-subtle/80 pt-1 border-t border-brown-dark/10">
-                  {k.meta}
-                </span>
-              </Link>
+              <TypeCardLink key={k.href} {...k} />
             ))}
           </div>
         </div>

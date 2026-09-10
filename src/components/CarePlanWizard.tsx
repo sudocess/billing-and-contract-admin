@@ -66,6 +66,7 @@ export default function CarePlanWizard() {
   const [step, setStep] = useState(1)
 
   const [clients, setClients] = useState<Client[]>([])
+  const [loadingClients, setLoadingClients] = useState(true)
   const [search, setSearch] = useState('')
   const [picked, setPicked] = useState<Client | null>(null)
 
@@ -113,6 +114,7 @@ export default function CarePlanWizard() {
       .then(r => (r.ok ? r.json() : []))
       .then((rows: Client[]) => setClients(rows))
       .catch(() => setClients([]))
+      .finally(() => setLoadingClients(false))
   }, [])
 
   // Everything already true about this client, so the plan is priced against reality.
@@ -333,7 +335,7 @@ export default function CarePlanWizard() {
         })}
       </aside>
 
-      <div className="wizard-panel">
+      <div className="wizard-form">
         {step === 1 && (
           <div>
             <h2 className="wstep-heading">Which client?</h2>
@@ -348,7 +350,25 @@ export default function CarePlanWizard() {
               className="mb-4"
             />
             <div className="flex flex-col gap-2">
-              {filtered.map(c => (
+              <p className="sr-only" role="status">
+                {loadingClients ? 'Loading clients.' : `${clients.length} clients loaded.`}
+              </p>
+
+              {/* Until the fetch resolves the list is empty, and the empty-state message
+                  below would otherwise tell the operator there are no clients when there
+                  simply are none yet. */}
+              {loadingClients && (
+                <div aria-hidden="true" className="flex flex-col gap-2">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="rounded-lg border border-brown-light px-4 py-3">
+                      <div className="skeleton h-4 w-40 rounded mb-2" />
+                      <div className="skeleton h-3 w-64 rounded" />
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {!loadingClients && filtered.map(c => (
                 <button
                   key={c.id}
                   type="button"
@@ -366,7 +386,7 @@ export default function CarePlanWizard() {
                   </div>
                 </button>
               ))}
-              {filtered.length === 0 && (
+              {!loadingClients && filtered.length === 0 && (
                 <p className="text-sm text-brown-subtle">
                   No match. <Link href="/clients" className="text-brown-rust underline">Add the client first</Link>.
                 </p>
@@ -388,7 +408,11 @@ export default function CarePlanWizard() {
                   Financial summary
                 </div>
                 {loadingSummary ? (
-                  <p className="text-sm text-brown-subtle m-0">Loading…</p>
+                  <div className="flex flex-col gap-2" aria-hidden="true">
+                    <div className="skeleton h-3.5 w-full rounded" />
+                    <div className="skeleton h-3.5 w-3/4 rounded" />
+                    <div className="skeleton h-3.5 w-1/2 rounded" />
+                  </div>
                 ) : (
                   <dl className="text-sm flex flex-col gap-1.5 m-0">
                     <SumRow label="Contracted (signed or awaiting)" value={fmtEuro(financial.contracted)} />
@@ -404,7 +428,10 @@ export default function CarePlanWizard() {
                   Project summary
                 </div>
                 {loadingSummary ? (
-                  <p className="text-sm text-brown-subtle m-0">Loading…</p>
+                  <div className="flex flex-col gap-2" aria-hidden="true">
+                    <div className="skeleton h-3.5 w-full rounded" />
+                    <div className="skeleton h-3.5 w-2/3 rounded" />
+                  </div>
                 ) : contracts.length === 0 ? (
                   <p className="text-sm text-brown-subtle m-0">No contracts on file for this client.</p>
                 ) : (

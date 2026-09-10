@@ -1,6 +1,7 @@
 import ExtensionPicker from './ExtensionPicker'
 
 export const dynamic = 'force-dynamic'
+export const metadata = { title: 'New scope extension, Engaging UX Design' }
 
 export default function NewScopeExtensionPage() {
   return (

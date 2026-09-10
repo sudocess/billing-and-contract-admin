@@ -161,7 +161,32 @@ export default function ViewContractPage() {
 
   if (loading) {
     return (
-      <div className="p-8 text-sm text-brown-subtle">Loading contract…</div>
+      <>
+        <div className="bg-white px-4 sm:px-8 py-4 flex items-center gap-3 border-b border-brown-dark/10 sticky top-0 z-50">
+          <div className="skeleton h-4 w-16 rounded" aria-hidden="true" />
+          <div className="skeleton h-5 w-48 rounded" aria-hidden="true" />
+        </div>
+        <div className="p-4 sm:p-7 flex-1 space-y-5">
+          <p className="sr-only" role="status">Loading contract.</p>
+          {/* Shaped like the real page rather than one grey box, so the wait reads as
+              the page arriving instead of a placeholder screen. */}
+          <div className="panel p-6" aria-hidden="true">
+            <div className="skeleton h-4 w-24 rounded mb-3" />
+            <div className="skeleton h-7 w-64 rounded mb-2" />
+            <div className="skeleton h-4 w-40 rounded" />
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5" aria-hidden="true">
+            <div className="lg:col-span-2 space-y-5">
+              <div className="panel p-5"><div className="skeleton h-32 w-full rounded" /></div>
+              <div className="panel p-5"><div className="skeleton h-48 w-full rounded" /></div>
+            </div>
+            <div className="space-y-5">
+              <div className="panel p-5"><div className="skeleton h-40 w-full rounded" /></div>
+              <div className="panel p-5"><div className="skeleton h-28 w-full rounded" /></div>
+            </div>
+          </div>
+        </div>
+      </>
     )
   }
 

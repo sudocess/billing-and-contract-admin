@@ -1,5 +1,7 @@
 import ContractWizard from '@/components/ContractWizard'
 
+export const metadata = { title: 'New project contract, Engaging UX Design' }
+
 export default function NewContractPage() {
   return (
     <>

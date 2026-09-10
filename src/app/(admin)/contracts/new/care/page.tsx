@@ -1,6 +1,7 @@
 import CarePlanWizard from '@/components/CarePlanWizard'
 
 export const dynamic = 'force-dynamic'
+export const metadata = { title: 'New care plan, Engaging UX Design' }
 
 export default function NewCarePlanPage() {
   return (

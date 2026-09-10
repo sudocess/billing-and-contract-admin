@@ -1,0 +1,48 @@
+/**
+ * Shown while the route resolves. The header and the step rail are real, because
+ * nothing about them is unknown yet; only the part that is actually being fetched
+ * is drawn as a skeleton.
+ */
+export default function Loading() {
+  return (
+    <>
+      <div className="bg-white px-4 sm:px-8 py-4 flex items-center justify-between border-b border-brown-dark/10 sticky top-0 z-50">
+        <h1 className="font-heading text-lg font-extrabold text-brown-dark">New care plan</h1>
+      </div>
+
+      <div className="p-4 sm:p-7 flex-1">
+        <p className="sr-only" role="status">Loading clients.</p>
+
+        <div className="wizard-wrap">
+          <aside className="wizard-steps" aria-hidden="true">
+            {['Client', 'Plan', 'Review', 'Generate'].map((label, i) => (
+              <div key={label}>
+                <div className={`wstep ${i === 0 ? 'wstep-active' : 'wstep-default'}`}>
+                  <div className="wstep-circle">{i + 1}</div>
+                  <div className="wstep-text">
+                    <div className="wstep-label">{label}</div>
+                  </div>
+                </div>
+                {i < 3 && <div className="wstep-divider" />}
+              </div>
+            ))}
+          </aside>
+
+          <div className="wizard-form" aria-hidden="true">
+            <h2 className="wstep-heading">Which client?</h2>
+            <p className="wstep-tagline">Pick from clients already on file.</p>
+            <div className="skeleton h-[42px] w-full rounded-lg mb-4" />
+            <div className="flex flex-col gap-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="rounded-lg border border-brown-light px-4 py-3">
+                  <div className="skeleton h-4 w-40 rounded mb-2" />
+                  <div className="skeleton h-3 w-64 rounded" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
