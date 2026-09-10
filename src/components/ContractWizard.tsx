@@ -1713,8 +1713,14 @@ export function ContractPreview({ lang, data }: { lang: 'en' | 'nl'; data: Previ
     <article className="text-[0.82rem] leading-relaxed text-brown-dark">
       {/* Header */}
       <div className="font-heading font-black text-base text-brown-dark">
-        {t.contractTitle}
-        {data.projectName ? `: ${data.projectName}` : ''} — {data.phaseLabel}
+        {/* A care plan's project name and phase label are both "Care plan", so the
+            generic pattern printed the words three times. Name it once. */}
+        {data.contractType === 'care'
+          ? (data.carePlan?.selectedTier ? 'Care Plan Agreement' : 'Care Plan Proposal')
+          : <>
+              {t.contractTitle}
+              {data.projectName ? `: ${data.projectName}` : ''}, {data.phaseLabel}
+            </>}
       </div>
       <div className="text-xs text-brown-subtle mb-4">
         {t.contractId}: {data.contractId} · {t.issued}: {today}

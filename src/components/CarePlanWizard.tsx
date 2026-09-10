@@ -673,16 +673,17 @@ export default function CarePlanWizard() {
             {/* One table: the plan cards are its header row, so a card sits exactly
                 over the column it describes. Two separate grids drifted apart by their
                 own gaps, which is what the misalignment was. */}
-            <div className="w-fit max-w-full overflow-x-auto border border-brown-light rounded-lg mb-5">
-              {/* Fixed pixel columns, and the table is not stretched to the page.
-                  Filling 1850px gave each plan a ~400px column holding one word,
-                  which is what put a void between a row and its values. */}
-              <table className="compare-table table-fixed border-collapse text-[12px]">
+            <div className="max-w-[1100px] overflow-x-auto border border-brown-light rounded-lg mb-5">
+              {/* Proportional columns inside a capped width. Filling the whole page put
+                  400px between a row and its values; hugging the content at 790px left
+                  a void beside it. A cap keeps the row short enough to read across and
+                  wide enough not to look stranded. */}
+              <table className="compare-table table-fixed w-full border-collapse text-[12px] min-w-[620px]">
                 <colgroup>
-                  <col style={{ width: '220px' }} />
-                  <col style={{ width: '190px' }} />
-                  <col style={{ width: '190px' }} />
-                  <col style={{ width: '190px' }} />
+                  <col style={{ width: '34%' }} />
+                  <col style={{ width: '22%' }} />
+                  <col style={{ width: '22%' }} />
+                  <col style={{ width: '22%' }} />
                 </colgroup>
                 <thead>
                   <tr>

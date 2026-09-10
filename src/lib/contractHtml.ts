@@ -409,6 +409,32 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
 
   const clientName = c.name || '[Client name]'
 
+  /**
+   * The terms that govern a monthly plan.
+   *
+   * A care plan has no milestones, so none of the phase-payment language applies to
+   * it. These are the plan's own terms: how the allowance works, what happens to hours
+   * that go unused, what is included in the fee, and what an overdue invoice does and
+   * does not affect.
+   */
+  function careTerms(c: NonNullable<PreviewData['carePlan']>): string {
+    const rollover = Math.max(1, Math.round(c.includedHours / 2))
+    const threshold = Math.max(1, Math.round(c.includedHours * 2))
+    return `
+      <div class="note">
+        <strong>How the included hours work.</strong> Included hours cover technical and design work on the delivered website and application: changes, content and gallery updates, fixes, and feature work within the existing systems. Time is logged in 15-minute increments and reported monthly. Up to ${rollover} unused ${rollover === 1 ? 'hour carries' : 'hours carry'} into the following calendar month only and expire at the end of it. Hours have no cash value and are not refundable, transferable or exchangeable, and any unused hours expire when this agreement ends.
+      </div>
+      <div class="note">
+        <strong>Work beyond the allowance.</strong> Work requested beyond the included hours is agreed in writing before it starts and billed in arrears at ${fmt(c.hourlyRate)} per hour. Engaging UX Design will say so in writing before the allowance is exceeded, and will not incur additional hours without written approval. Work outside the scope of the delivered systems, including new applications or integrations, a visual redesign, migration to a different platform, or any single piece of work reasonably estimated at more than ${threshold} hours, is quoted and agreed as a separate scope extension.
+      </div>
+      <div class="note">
+        <strong>Billing and notice.</strong> The fee is payable monthly in advance. Either party may end this agreement with ${c.noticeDays} days&rsquo; written notice, and the plan may be moved up or down at any month boundary on the same notice. Rates are reviewed annually and any change is given 60 days&rsquo; written notice.${c.includesInfrastructure ? ' All third-party infrastructure covered by this plan is included in the monthly fee, with no separate pass-through invoices.' : ''}
+      </div>
+      <div class="note">
+        <strong>If an invoice is overdue.</strong> Delivery or release of outstanding work is paused until payment is received. The website, the business email, the domain name and access to the administration application are not suspended, withheld or allowed to lapse for non-payment. On cancellation, a full export of website files, database and client data is provided at no charge, and no service is switched off before the transfer is complete.
+      </div>`
+  }
+
   /* ── Which kind of agreement is this? ──────────────────────────────────────
      Three documents share one shell. Only sections 2, 4 and 5 differ: what the
      agreement is at a glance, how it is paid for, and what it includes. Everything
@@ -481,7 +507,8 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
   const paymentBlock =
     docKind === 'care' && care && !careAgreed
       ? `
-      <div class="note">No fee is payable until a plan is chosen. Once a plan is agreed, the fee for that plan is billed monthly in advance, and hours beyond its included allowance are agreed in writing before the work starts and billed in arrears at the rate shown for that plan. Either party may end the plan with ${care.noticeDays} days&rsquo; written notice.</div>`
+      <div class="note">No fee is payable until a plan is chosen. Once a plan is agreed, that plan&rsquo;s fee is billed monthly in advance and the terms below apply to it.</div>
+      ${careTerms(care)}`
       : docKind === 'care' && care
       ? `
       <table class="payment-table">
@@ -490,13 +517,11 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
         </thead>
         <tbody>
           <tr><td>Monthly fee</td><td>Billed monthly in advance</td><td class="amount">${fmt(care.monthlyFee)}</td></tr>
-          <tr><td>Included hours</td><td>${care.includedHours} hours each month, within the fee</td><td class="amount">included</td></tr>
+          <tr><td>Included hours</td><td>${care.includedHours} ${care.includedHours === 1 ? 'hour' : 'hours'} each month, within the fee</td><td class="amount">included</td></tr>
           <tr><td>Additional hours</td><td>Agreed in writing in advance, billed in arrears</td><td class="amount">${fmt(care.hourlyRate)}/hr</td></tr>
         </tbody>
       </table>
-      <div class="note">
-        The fee is payable monthly in advance. Included hours are a reservation of capacity: they have no cash value, are not refundable or exchangeable, and unused hours do not carry beyond the following month. Hours beyond the included allowance are agreed in writing before the work starts and are billed in arrears at the rate above. Where an invoice is overdue, delivery or release of outstanding work is paused until payment is received; the website, business email, the domain name and access to the administration application are not suspended, withheld or allowed to lapse for non-payment. Either party may end this agreement with ${care.noticeDays} days&rsquo; written notice.
-      </div>`
+      ${careTerms(care)}`
       : `
       <table class="payment-table">
         <thead>
@@ -785,8 +810,10 @@ ${includePrintScript ? '<button class="toolbar" onclick="window.print()">Save as
   </header>
 
   <div class="contract-title-bar">
-    <div class="contract-title">${projectTitle}</div>
-    <div class="contract-subtitle">${esc(data.phaseLabel)} · ${esc(typeLabel)}</div>
+    <div class="contract-title">${docKind === 'care' ? esc(docTitle) : projectTitle}</div>
+    <div class="contract-subtitle">${docKind === 'care'
+      ? esc(`${data.client.company || data.client.name} · monthly support`)
+      : `${esc(data.phaseLabel)} &middot; ${esc(typeLabel)}`}</div>
   </div>
 
   <div class="page-body">
