@@ -228,7 +228,12 @@ interface SendSignedConfirmationOptions {
   contractCode: string
   projectName: string | null
   signedAt: Date
-  pdfBuffer: Buffer
+  /**
+   * Null where the render failed. The confirmation still goes out: telling the client
+   * their signature was recorded matters more than the attachment, and withholding the
+   * whole email over a missing file leaves them with no confirmation at all.
+   */
+  pdfBuffer: Buffer | null
 }
 
 export async function sendSignedConfirmationToClient(opts: SendSignedConfirmationOptions) {
@@ -250,7 +255,9 @@ export async function sendSignedConfirmationToClient(opts: SendSignedConfirmatio
   <div style="font-family:Helvetica,Arial,sans-serif;font-size:22px;font-weight:bold;color:#1c1008;margin-bottom:8px;">Contract signed ✓</div>
   <div style="font-family:Helvetica,Arial,sans-serif;font-size:14px;color:#3b2110;line-height:1.65;">
     Hi ${escapeHtml(firstName)},<br><br>
-    Thank you for signing your service agreement with Engaging UX Design. Your signed copy is attached to this email for your records.<br><br>
+    Thank you for signing your service agreement with Engaging UX Design. ${opts.pdfBuffer
+      ? 'Your signed copy is attached to this email for your records.'
+      : 'Your signed copy will follow shortly in a separate email.'}<br><br>
     <strong>Contract:</strong> <span style="font-family:monospace;">${escapeHtml(opts.contractCode)}</span><br>
     ${opts.projectName ? `<strong>Project:</strong> ${escapeHtml(opts.projectName)}<br>` : ''}
     <strong>Signed on:</strong> ${escapeHtml(dateFmt)}
@@ -258,7 +265,9 @@ export async function sendSignedConfirmationToClient(opts: SendSignedConfirmatio
 </td></tr>
 <tr><td style="padding:16px 32px 32px;">
   <div style="font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#7a5a40;background:#f7ede2;border-left:3px solid #8b3a1e;padding:10px 14px;border-radius:0 6px 6px 0;">
-    📎 Your signed service agreement is attached as a PDF.
+    ${opts.pdfBuffer
+      ? '&#128206; Your signed service agreement is attached as a PDF.'
+      : 'Your signature was recorded successfully. The PDF copy could not be generated automatically and will be sent to you separately.'}
   </div>
 </td></tr>
 <tr><td style="padding:20px 32px;border-top:1px solid rgba(59,33,16,0.1);">
@@ -277,11 +286,15 @@ export async function sendSignedConfirmationToClient(opts: SendSignedConfirmatio
     to: opts.to,
     subject: `Signed: Service Agreement ${opts.contractCode}, Engaging UX Design`,
     html,
-    attachments: [{
-      filename: `Signed-Agreement-${opts.contractCode}.pdf`,
-      content: opts.pdfBuffer,
-      contentType: 'application/pdf',
-    }],
+    ...(opts.pdfBuffer
+      ? {
+          attachments: [{
+            filename: `Signed-Agreement-${opts.contractCode}.pdf`,
+            content: opts.pdfBuffer,
+            contentType: 'application/pdf',
+          }],
+        }
+      : {}),
   })
 }
 
@@ -291,7 +304,8 @@ interface SendSignedNotificationOptions {
   clientEmail: string
   signedAt: Date
   signerIp: string
-  pdfBuffer: Buffer
+  /** Null where the render failed; the notification still goes out. */
+  pdfBuffer: Buffer | null
   /**
    * Where the notification goes.
    *
@@ -331,7 +345,9 @@ export async function sendSignedNotificationToAdmin(opts: SendSignedNotification
 </td></tr>
 <tr><td style="padding:0 32px 28px;">
   <div style="font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#7a5a40;background:#f7ede2;border-left:3px solid #8b3a1e;padding:10px 14px;border-radius:0 6px 6px 0;">
-    The signed contract is attached, and the same copy is stored on the contract record.
+    ${opts.pdfBuffer
+      ? 'The signed contract is attached, and the same copy is stored on the contract record.'
+      : 'The signature is recorded, but the PDF could not be produced and is not attached. The contract page says so on its timeline.'}
   </div>
   ${opts.contractUrl ? `<div style="padding-top:18px;">
     <table role="presentation" cellpadding="0" cellspacing="0" border="0">
@@ -353,11 +369,15 @@ export async function sendSignedNotificationToAdmin(opts: SendSignedNotification
     replyTo: opts.clientEmail || undefined,
     subject: `Signed: ${opts.contractCode}, ${opts.clientName}`,
     html,
-    attachments: [{
-      filename: `Signed-Agreement-${opts.contractCode}.pdf`,
-      content: opts.pdfBuffer,
-      contentType: 'application/pdf',
-    }],
+    ...(opts.pdfBuffer
+      ? {
+          attachments: [{
+            filename: `Signed-Agreement-${opts.contractCode}.pdf`,
+            content: opts.pdfBuffer,
+            contentType: 'application/pdf',
+          }],
+        }
+      : {}),
   })
 }
 

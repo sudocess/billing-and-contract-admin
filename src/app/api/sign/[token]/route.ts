@@ -82,25 +82,13 @@ export async function POST(
   })
   const signingReference = randomUUID().toUpperCase()
 
-  // Generate signed PDF with both signatures filled in
-  const previewData = contract.data as PreviewData
-  const html = generateContractHtml(previewData, {
-    sigBase64: getSignatureBase64(),
-    pdfMode: true,
-    clientSignedName: name,
-    clientSignedAt: signedAtFormatted,
-    signingReference,
-    signerIp: ip,
-    signerTimestampIso: signedAt.toISOString(),
-  })
-  const pdfBuffer = await htmlToPdf(html)
-
-  // Mark contract as signed, clear the token, and keep the document itself.
-  //
-  // This PDF used to be generated, emailed and dropped. That is how two of Leemar's
-  // signed agreements became unrecoverable: the contract row was later edited, and
-  // nothing anywhere still held what had actually been signed. Storing it alongside
-  // the audit fields means the record survives any later edit to the contract.
+  /* The signature is recorded first, and the document is rendered after.
+     
+     These used to be one step, with the PDF generated before anything was written, so
+     any failure in Chromium cost the client their signature rather than just the
+     attachment. That is the wrong thing to lose. The signature is the act with legal
+     effect; the PDF is a rendering of a snapshot that is already stored on the row and
+     can be produced again at any time. */
   await prisma.contract.update({
     where: { id: contract.id },
     data: {
@@ -111,16 +99,54 @@ export async function POST(
       consentConfirmed: true,
       signingToken: null,
       signingTokenExpiresAt: null,
-      // Copied into a plain Uint8Array: Prisma's Bytes expects one backed by an
-      // ArrayBuffer, which Node's Buffer does not guarantee.
-      signedPdf: new Uint8Array(pdfBuffer),
-      signedPdfSha256: createHash('sha256').update(pdfBuffer).digest('hex'),
-      signedPdfSize: pdfBuffer.length,
       signingReference,
     },
   })
 
   await recordEvent(contract.id, 'signed', `Signed by ${name} from ${ip}`, name)
+
+  /* Now the document.
+     
+     Stored on the row rather than rendered and dropped: that is how two of Leemar's
+     signed agreements became unrecoverable, because the contract was later edited and
+     nothing still held what had actually been signed. If it cannot be produced, the
+     signature stands and the gap is written to the trail, so it is visible and can be
+     filled in later rather than discovered in a dispute. */
+  const previewData = contract.data as PreviewData
+  let pdfBuffer: Buffer | null = null
+  try {
+    const html = generateContractHtml(previewData, {
+      sigBase64: getSignatureBase64(),
+      pdfMode: true,
+      clientSignedName: name,
+      clientSignedAt: signedAtFormatted,
+      signingReference,
+      signerIp: ip,
+      signerTimestampIso: signedAt.toISOString(),
+    })
+    pdfBuffer = await htmlToPdf(html)
+
+    await prisma.contract.update({
+      where: { id: contract.id },
+      data: {
+        // Copied into a plain Uint8Array: Prisma's Bytes expects one backed by an
+        // ArrayBuffer, which Node's Buffer does not guarantee.
+        signedPdf: new Uint8Array(pdfBuffer),
+        signedPdfSha256: createHash('sha256').update(pdfBuffer).digest('hex'),
+        signedPdfSize: pdfBuffer.length,
+      },
+    })
+  } catch (err) {
+    console.error('[sign] signed PDF could not be produced', err)
+    await recordEvent(
+      contract.id,
+      'signed',
+      `Signature recorded, but the signed PDF could not be produced and is not stored: ${
+        err instanceof Error ? err.message : 'unknown error'
+      }`,
+      'system',
+    )
+  }
 
   // Signing a revision is what retires the version it replaces. Until this moment the
   // previous version was the agreement in force, so that a revision drafted and then
@@ -157,6 +183,8 @@ export async function POST(
       contractCode: contract.contractCode,
       projectName: contract.projectName,
       signedAt,
+      // Absent only where the render failed above. The email still goes, confirming
+      // the signature, rather than being withheld because an attachment is missing.
       pdfBuffer,
     })
       .then(() =>

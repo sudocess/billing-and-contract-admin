@@ -1,4 +1,3 @@
-import { notFound } from 'next/navigation'
 import fs from 'fs'
 import path from 'path'
 import { prisma } from '@/lib/prisma'
@@ -28,8 +27,16 @@ export default async function SignPage({
     where: { signingToken: token },
   })
 
-  // Token doesn't exist
-  if (!contract) return notFound()
+  // No such token. Expired links are cleared on signing, so this is also what an
+  // already-used link looks like, and it is the case a client is most likely to hit.
+  if (!contract) {
+    return (
+      <StatusPage
+        title="This signing link is no longer active"
+        message="The link has either already been used to sign, or it has been replaced by a newer one. If you still need to sign, reply to the email it came from and a fresh link will be sent."
+      />
+    )
+  }
 
   // Already signed
   if (contract.status === 'SIGNED') {
