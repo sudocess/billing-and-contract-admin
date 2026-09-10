@@ -114,6 +114,16 @@ export async function POST(
     },
   })
 
+  // Signing a revision is what retires the version it replaces. Until this moment the
+  // previous version was the agreement in force, so that a revision drafted and then
+  // abandoned never leaves the client under no contract at all.
+  if (contract.supersedesId) {
+    await prisma.contract.update({
+      where: { id: contract.supersedesId },
+      data: { status: 'SUPERSEDED', archivedAt: new Date() },
+    }).catch(err => console.error('[sign] could not retire the superseded version', err))
+  }
+
   // Send confirmation emails (non-blocking — don't fail the sign action if email fails)
   const clientEmail = (contract.dedicatedEmail || contract.clientEmail || '').trim()
   if (clientEmail) {

@@ -16,7 +16,19 @@ export async function POST(
   const old = await prisma.contract.findUnique({ where: { contractCode: code } })
   if (!old) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (old.status === 'SUPERSEDED') {
-    return NextResponse.json({ error: 'Already superseded' }, { status: 409 })
+    return NextResponse.json({ error: 'This version has already been replaced.' }, { status: 409 })
+  }
+  // One open revision at a time: two drafts both claiming to replace the same
+  // agreement would leave it ambiguous which one signing should retire.
+  const openRevision = await prisma.contract.findFirst({
+    where: { supersedesId: old.id, status: { in: ['DRAFT', 'PENDING'] } },
+    select: { contractCode: true },
+  })
+  if (openRevision) {
+    return NextResponse.json(
+      { error: `A revision of this contract already exists (${openRevision.contractCode}). Finish or cancel it first.` },
+      { status: 409 },
+    )
   }
 
   // Every code already in the family, so a revision can never reuse one left behind
@@ -31,10 +43,11 @@ export async function POST(
   const newCode = nextContractVersion(old.contractCode, siblings.map((c) => c.contractCode))
 
   const result = await prisma.$transaction(async (tx) => {
-    const updated = await tx.contract.update({
-      where: { id: old.id },
-      data: { status: 'SUPERSEDED', archivedAt: new Date() },
-    })
+    // The previous version stays in force. A revision that is drafted and never
+    // signed must not silently void the agreement the client is actually under —
+    // the old version is retired at the moment the new one is signed, not before.
+    // See src/app/api/sign/[token]/route.ts, which does the retiring.
+    const updated = await tx.contract.findUniqueOrThrow({ where: { id: old.id } })
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { id, createdAt, updatedAt, contractCode, installments, ...rest } = old
