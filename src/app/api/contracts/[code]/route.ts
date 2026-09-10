@@ -62,6 +62,11 @@ export async function PATCH(
       data: {
         status,
         signedAt: status === 'SIGNED' ? new Date() : undefined,
+        /* Cancelling recorded an event but stamped no date, so the timeline had
+           nothing to place and a cancelled contract showed no sign of it. Reactivating
+           clears it again, otherwise a contract that came back would still carry the
+           date it was cancelled on. */
+        archivedAt: status === 'CANCELLED' ? new Date() : status === 'PENDING' ? null : undefined,
       },
     })
 

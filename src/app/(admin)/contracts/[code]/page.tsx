@@ -50,6 +50,7 @@ type ContractRow = {
   updatedAt: string
   signedAt: string | null
   sentAt: string | null
+  archivedAt: string | null
   data: PreviewData | null
   invoices?: TermInvoice[]
   events?: { id: string; type: string; detail: string | null; actor: string | null; at: string }[]
@@ -80,7 +81,7 @@ function fmtDate(iso?: string | null) {
 }
 
 function fmtDateTime(iso?: string | null) {
-  if (!iso) return '—'
+  if (!iso) return 'Not recorded'
   return new Date(iso).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
@@ -212,6 +213,48 @@ export default function ViewContractPage() {
   // the wizard sent it only carry the schedule inside the `data` snapshot. Falling back
   // to the snapshot is what the client-facing document already does, so both surfaces
   // state the same terms instead of this panel alone reverting to the 30/40/30 columns.
+  /* The timeline, as a sequence.
+     
+     It used to be four fields printed in a fixed order, so the dates ran forwards and
+     backwards: created in May, last updated in September, sent in September, signed in
+     May. Worse, it printed "Signed" from a signedAt that survives on rows whose status
+     is not signed, so a contract awaiting signature announced itself as signed. Both
+     are fixed by building real entries and sorting them. */
+  const signedLabel =
+    contract.status === 'SIGNED' ? 'Signed'
+      : contract.status === 'SUPERSEDED' ? 'Signed, later replaced'
+      : contract.status === 'CANCELLED' ? 'Signed, later cancelled'
+      : 'Earlier signature'
+  const signedNote =
+    contract.status === 'SIGNED' || contract.status === 'SUPERSEDED' || contract.status === 'CANCELLED'
+      ? undefined
+      : 'Not in force. This contract is still awaiting signature.'
+
+  const timeline = (
+    [
+      { at: contract.createdAt, label: 'Created', dot: 'bg-brown-rust', note: undefined as string | undefined },
+      contract.sentAt
+        ? { at: contract.sentAt, label: 'Sent to client', dot: 'bg-warning', note: undefined }
+        : null,
+      contract.signedAt
+        ? {
+            at: contract.signedAt,
+            label: signedLabel,
+            dot: contract.status === 'SIGNED' ? 'bg-success' : 'bg-brown-subtle',
+            note: signedNote,
+          }
+        : null,
+      contract.archivedAt
+        ? {
+            at: contract.archivedAt,
+            label: contract.status === 'SUPERSEDED' ? 'Replaced by a new version' : 'Cancelled',
+            dot: 'bg-danger',
+            note: undefined,
+          }
+        : null,
+    ].filter(Boolean) as { at: string; label: string; dot: string; note?: string }[]
+  ).sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0))
+
   const schedule = parseSchedule(contract.installments) ?? parseSchedule(contract.data?.schedule)
   const computed = schedule && schedule.instalments.length > 0 ? computeSchedule(schedule) : null
   const invoicesByTerm = groupInvoicesByTerm(contract.invoices ?? [])
@@ -548,11 +591,15 @@ export default function ViewContractPage() {
             <div className="panel p-5">
               <div className="text-xs font-bold text-brown-subtle uppercase tracking-wider mb-4">Timeline</div>
               <ul className="space-y-3 text-sm">
-                <TimelineItem label="Created" value={fmtDateTime(contract.createdAt)} dotClass="bg-brown-rust" />
-                <TimelineItem label="Last updated" value={fmtDateTime(contract.updatedAt)} dotClass="bg-brown-pale" />
-                {contract.sentAt && <TimelineItem label="Sent to client" value={fmtDateTime(contract.sentAt)} dotClass="bg-warning" />}
-                {contract.signedAt && <TimelineItem label="Signed" value={fmtDateTime(contract.signedAt)} dotClass="bg-success" />}
+                {timeline.map(t => (
+                  <TimelineItem key={t.label} label={t.label} value={fmtDateTime(t.at)} dotClass={t.dot} note={t.note} />
+                ))}
               </ul>
+              {/* Not in the list: it is the state of a mutable field, not something that
+                  happened, and mixing it in is what sent the sequence backwards. */}
+              <div className="mt-4 pt-3 border-t border-brown-dark/10 text-[11px] text-brown-subtle">
+                Last updated {fmtDateTime(contract.updatedAt)}
+              </div>
             </div>
           </div>
         </div>
@@ -701,13 +748,16 @@ function ContactLine({ icon, href, children, muted }: { icon: 'mail' | 'phone'; 
   )
 }
 
-function TimelineItem({ label, value, dotClass }: { label: string; value: string; dotClass: string }) {
+function TimelineItem({
+  label, value, dotClass, note,
+}: { label: string; value: string; dotClass: string; note?: string }) {
   return (
     <li className="flex items-start gap-3">
       <span className={`mt-1.5 inline-block w-2 h-2 rounded-full flex-shrink-0 ${dotClass}`} />
-      <div>
+      <div className="min-w-0">
         <div className="text-[10px] font-bold uppercase tracking-widest text-brown-subtle">{label}</div>
         <div className="text-brown-dark text-xs">{value}</div>
+        {note && <div className="text-[11px] text-warning mt-0.5 leading-snug">{note}</div>}
       </div>
     </li>
   )
