@@ -27,6 +27,15 @@ export type PreviewData = {
   /** Variable-length payment schedule. When present it replaces the p1/p2/p3 table. */
   schedule?: PaymentSchedule | null
   /**
+   * On a scope extension, the agreement it adds to.
+   *
+   * Held explicitly rather than read out of the contract code. Extensions used to be
+   * numbered inside their parent (…-0001-EXT1), so the parent could be parsed back
+   * out; they are now their own family (…-E1-0001) and nothing in the code says what
+   * they extend.
+   */
+  extendsCode?: string | null
+  /**
    * Present only on care-plan agreements. A care plan has no milestones and no fixed
    * total, so sections 2, 4 and 5 are rendered from this instead of from the phase
    * split — which would otherwise print three €0.00 milestone rows under a monthly fee.
@@ -441,11 +450,17 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
      else — parties, infrastructure, obligations, IP, the legal tail — is common,
      and stays common so a clause fixed once is fixed everywhere. */
   const care = data.carePlan ?? null
-  // An extension's parent is in its own code (…-0001-EXT1), so nothing extra is
-  // needed to state what it extends even on a contract saved before this existed.
-  const extMatch = /^(.*)-EXT(\d+)$/.exec(data.contractId || '')
+  // Legacy extensions were numbered inside their parent, so the parent is still
+  // recoverable from those codes; newer ones carry it explicitly.
+  const legacyExt = /^(.*)-EXT(\d+)$/.exec(data.contractId || '')
+  const isExtension =
+    data.contractType === 'extension'
+    || !!data.extendsCode
+    || !!legacyExt
+    || /-E\d+-\d{4}$/.test(data.contractId || '')
+  const extendsCode = data.extendsCode || legacyExt?.[1] || ''
   const docKind: 'care' | 'extension' | 'project' =
-    care ? 'care' : extMatch ? 'extension' : 'project'
+    care ? 'care' : isExtension ? 'extension' : 'project'
 
   // A proposal offers three plans and binds none; an agreement states the one chosen.
   const careAgreed = !!care?.selectedTier
@@ -478,7 +493,7 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
         ? `
         <div class="detail-cell">
           <div class="detail-cell-label">Extends</div>
-          <div class="detail-cell-value">${esc(extMatch ? extMatch[1] : '')}</div>
+          <div class="detail-cell-value">${esc(extendsCode || 'the original agreement')}</div>
         </div>
         <div class="detail-cell">
           <div class="detail-cell-label">Agreed completion</div>
@@ -538,7 +553,7 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
 
   const scopeNote =
     docKind === 'extension'
-      ? `<div class="note accent" style="margin-top:10px;">This is additional work, outside the scope of ${esc(extMatch ? extMatch[1] : 'the original agreement')}. That agreement remains in force unchanged; this document adds to it and is priced and signed separately.</div>`
+      ? `<div class="note accent" style="margin-top:10px;">This is additional work, outside the scope of ${esc(extendsCode || 'the original agreement')}. That agreement remains in force unchanged; this document adds to it and is priced and signed separately.</div>`
       : docKind === 'care' && care
         ? [
             // Stated first, because the question a client asks on receiving a second
@@ -813,7 +828,9 @@ ${includePrintScript ? '<button class="toolbar" onclick="window.print()">Save as
     <div class="contract-title">${docKind === 'care' ? esc(docTitle) : projectTitle}</div>
     <div class="contract-subtitle">${docKind === 'care'
       ? esc(`${data.client.company || data.client.name} · monthly support`)
-      : `${esc(data.phaseLabel)} &middot; ${esc(typeLabel)}`}</div>
+      : docKind === 'extension'
+        ? esc(`Scope extension of ${extendsCode || 'the original agreement'}`)
+        : `${esc(data.phaseLabel)} &middot; ${esc(typeLabel)}`}</div>
   </div>
 
   <div class="page-body">

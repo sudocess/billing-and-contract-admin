@@ -75,7 +75,9 @@ export async function POST(
       p3: 0,
       tier2Rate: parent.tier2Rate,
 
-      data: {},
+      // Named here so the document can say what it extends. The code no longer
+      // carries the parent, and the relation is not visible to the renderer.
+      data: { extendsCode: parent.contractCode },
       parentContractId: parent.id,
       versionNote: `Scope Extension ${extNumber} — work beyond the scope of ${parent.contractCode}`,
     },

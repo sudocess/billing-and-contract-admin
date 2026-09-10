@@ -676,6 +676,9 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
     // Only carried when the admin actually chose monthly terms; leaving it null keeps
     // every existing contract rendering through the legacy p1/p2/p3 path.
     schedule: scheduleMode === 'monthly' ? schedule : null,
+    // Carried through an edit. Rebuilding previewData from the form alone would drop
+    // it, and the extension would stop naming what it extends on its next save.
+    extendsCode: prefill?.data?.extendsCode ?? null,
     owner: { kvk: ownerReg.kvk, vat: ownerReg.vat },
     hosting: {
       mode: hosting,
