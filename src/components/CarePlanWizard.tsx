@@ -4,7 +4,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { fmtEuro, toCents, fromCents } from '@/lib/installments'
-import type { PastInvoice } from '@/components/ContractWizard'
+import {
+  ContractPreview, DeliveryCard, openContractPrintWindow,
+  type PastInvoice, type PreviewData,
+} from '@/components/ContractWizard'
 import {
   DEFAULT_TIERS, DEFAULT_FEATURES, effectiveRate, rateVerdict, RATE_FLOOR, monthlyFee,
   type CareTier, type CareFeature,
@@ -52,7 +55,8 @@ type ContractSummary = {
 const STEPS = [
   { num: 1, label: 'Client', sub: 'Who is this for?' },
   { num: 2, label: 'Plan', sub: 'Hours & rate' },
-  { num: 3, label: 'Review', sub: 'Preview & save' },
+  { num: 3, label: 'Review', sub: 'Plans & pricing' },
+  { num: 4, label: 'Generate', sub: 'Preview & send' },
 ]
 
 export default function CarePlanWizard() {
@@ -88,6 +92,11 @@ export default function CarePlanWizard() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [ownerReg, setOwnerReg] = useState<{ kvk: string; vat: string }>({ kvk: '', vat: '' })
+  const [previewLang, setPreviewLang] = useState<'en' | 'nl'>('en')
+  // Fixed once, so the code shown in the preview is the code that gets saved.
+  const [contractCode] = useState(
+    () => `${new Date().getFullYear()}-CARE-${String(Date.now()).slice(-6)}`,
+  )
 
   useEffect(() => {
     fetch('/api/settings/owner', { cache: 'no-store' })
@@ -195,6 +204,71 @@ export default function CarePlanWizard() {
     return { billed, received, outstanding: fromCents(toCents(billed) - toCents(received)), contracted }
   }, [invoices, contracts])
 
+  /**
+   * The contract snapshot. Built once and used by the preview, the print window and
+   * the save, so what is reviewed on screen is exactly what is stored and sent.
+   * Building it separately in each place is how this app previously ended up stating
+   * three different cancellation terms.
+   */
+  const carePlanSpec = {
+    tiers,
+    recommended,
+    selectedTier,
+    features: features.filter(f => f.label.trim()),
+    startDate,
+    noticeDays: parseInt(noticeDays) || 30,
+    includesInfrastructure: includesInfra,
+    notes: notes.trim(),
+    // The agreements this plan sits alongside. Printed so the document says plainly
+    // that it complements them rather than leaving the client to wonder whether a
+    // second contract has replaced the first.
+    complements: contracts
+      .filter(c => c.status === 'PENDING' || c.status === 'SIGNED')
+      .map(c => c.contractCode),
+    includedHours: hoursNum,
+    hourlyRate: rateNum,
+    monthlyFee: fee,
+    effectiveRate: Math.round(effective * 100) / 100,
+  }
+
+  const previewData: PreviewData = {
+    contractId: contractCode,
+    contractType: 'care',
+    plan: 'custom',
+    phase: 'custom',
+    phaseLabel: 'Care plan — monthly support',
+    projectName: 'Care plan',
+    deliverables: notes.trim() || `Monthly support: ${hoursNum} hours included at €${rateNum}/hr.`,
+    phaseStart: startDate,
+    phaseEnd: '',
+    client: {
+      name: picked?.name ?? '', company: picked?.company ?? '', email: picked?.email ?? '',
+      phone: picked?.phone ?? '', kvk: picked?.kvk ?? '', vat: picked?.vat ?? '',
+      address: picked?.address ?? '', postalCode: picked?.postalCode ?? '',
+      city: picked?.city ?? '', country: picked?.country ?? 'Netherlands',
+      dedicatedEmail: picked?.dedicatedEmail ?? '',
+    },
+    pricing: { total: fee, initFee: 0, p1: 0, p2: 0, p3: 0, tier2Rate: rateNum },
+    owner: ownerReg,
+    hosting: {
+      mode: includesInfra ? 'hosting' : 'none',
+      domainPrice: 0, hostingPrice: 0, clientHostingNote: '',
+    },
+    addons: {
+      seo: { on: false, price: 0 },
+      logo: { on: false, price: 0, note: '' },
+      support: { on: false, price: 0, months: 0 },
+      supabase: { on: false, price: 0 },
+      vercel: { on: false, price: 0 },
+    },
+    schedule: null,
+    carePlan: carePlanSpec,
+  }
+
+  async function generate(targetLang?: 'en' | 'nl') {
+    await openContractPrintWindow(targetLang ?? previewLang, previewData)
+  }
+
   const filtered = clients.filter(c => {
     const q = search.trim().toLowerCase()
     if (!q) return true
@@ -205,86 +279,29 @@ export default function CarePlanWizard() {
     if (!picked || saving) return
     setSaving(true); setError('')
     try {
-      const code = `${new Date().getFullYear()}-${picked.clientCode}-CARE${String(Date.now()).slice(-4)}`
-      const carePlan = {
-        tiers,
-        recommended,
-        selectedTier,
-        features: features.filter(f => f.label.trim()),
-        startDate,
-        noticeDays: parseInt(noticeDays) || 30,
-        includesInfrastructure: includesInfra,
-        notes: notes.trim(),
-        // Mirrors of the recommended tier, so the billing sections of the contract
-        // need no tier logic of their own.
-        includedHours: hoursNum,
-        hourlyRate: rateNum,
-        monthlyFee: fee,
-        effectiveRate: Math.round(effective * 100) / 100,
-      }
       const res = await fetch('/api/contracts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contractCode: code,
+          contractCode,
           contractType: 'care',
           plan: 'custom',
           phase: 'custom',
           phaseLabel: 'Care plan — monthly support',
-          language: 'en',
+          language: previewLang,
           projectName: 'Care plan',
-          deliverables: notes.trim() || `Monthly support: ${hoursNum} hours included at €${rateNum}/hr.`,
+          deliverables: previewData.deliverables,
           phaseStart: startDate,
           phaseEnd: null,
-          client: {
-            name: picked.name, company: picked.company ?? '', email: picked.email,
-            phone: picked.phone ?? '', kvk: picked.kvk ?? '', vat: picked.vat ?? '',
-            address: picked.address ?? '', postalCode: picked.postalCode ?? '',
-            city: picked.city ?? '', country: picked.country ?? 'Netherlands',
-            dedicatedEmail: picked.dedicatedEmail ?? '',
-          },
-          pricing: { total: fee, initFee: 0, p1: 0, p2: 0, p3: 0, tier2Rate: rateNum },
-          // A full PreviewData snapshot, because that is what the contract renders
-          // from — a partial object here would fail on the first field it lacks.
-          data: {
-            contractId: code,
-            contractType: 'care',
-            plan: 'custom',
-            phase: 'custom',
-            phaseLabel: 'Care plan — monthly support',
-            projectName: 'Care plan',
-            deliverables: notes.trim() || `Monthly support: ${hoursNum} hours included at €${rateNum}/hr.`,
-            phaseStart: startDate,
-            phaseEnd: '',
-            client: {
-              name: picked.name, company: picked.company ?? '', email: picked.email,
-              phone: picked.phone ?? '', kvk: picked.kvk ?? '', vat: picked.vat ?? '',
-              address: picked.address ?? '', postalCode: picked.postalCode ?? '',
-              city: picked.city ?? '', country: picked.country ?? 'Netherlands',
-              dedicatedEmail: picked.dedicatedEmail ?? '',
-            },
-            pricing: { total: fee, initFee: 0, p1: 0, p2: 0, p3: 0, tier2Rate: rateNum },
-            owner: ownerReg,
-            hosting: {
-              mode: includesInfra ? 'hosting' : 'none',
-              domainPrice: 0, hostingPrice: 0, clientHostingNote: '',
-            },
-            addons: {
-              seo: { on: false, price: 0 },
-              logo: { on: false, price: 0, note: '' },
-              support: { on: false, price: 0, months: 0 },
-              supabase: { on: false, price: 0 },
-              vercel: { on: false, price: 0 },
-            },
-            schedule: null,
-            carePlan,
-          },
+          client: previewData.client,
+          pricing: previewData.pricing,
+          data: previewData,
           schedule: null,
         }),
       })
       const j = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(j.error || 'Could not save the care plan.')
-      router.push(`/contracts/${encodeURIComponent(code)}`)
+      router.push(`/contracts/${encodeURIComponent(contractCode)}`)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save the care plan.')
       setSaving(false)
@@ -625,8 +642,8 @@ export default function CarePlanWizard() {
 
         {step === 3 && picked && (
           <div>
-            <h2 className="wstep-heading">Review</h2>
-            <p className="wstep-tagline">Check the figures before this becomes a contract.</p>
+            <h2 className="wstep-heading">Plans &amp; pricing</h2>
+            <p className="wstep-tagline">Pick the agreed plan, or leave it as a proposal showing all three.</p>
 
             <div className="flex flex-wrap items-baseline justify-between gap-3 mb-2">
               <span className="text-xs font-bold uppercase tracking-wider text-brown-muted">
@@ -792,18 +809,61 @@ export default function CarePlanWizard() {
           </div>
         )}
 
+        {step === 4 && picked && (
+          <div>
+            <h2 className="wstep-heading">Generate {isProposal ? 'proposal' : 'agreement'}</h2>
+            <p className="wstep-tagline">
+              Review the document, choose a language, then download or send for signature.
+            </p>
+
+            <div className="flex gap-1 mb-3">
+              <button
+                type="button"
+                className={`lang-tab ${previewLang === 'en' ? 'lang-tab-active' : ''}`}
+                onClick={() => setPreviewLang('en')}
+              >English</button>
+              <button
+                type="button"
+                className={`lang-tab ${previewLang === 'nl' ? 'lang-tab-active' : ''}`}
+                onClick={() => setPreviewLang('nl')}
+              >Nederlands</button>
+            </div>
+
+            <div className="contract-preview">
+              <ContractPreview lang={previewLang} data={previewData} />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
+              <DeliveryCard icon="↓" label="Download EN" sub="PDF · English version" onClick={() => generate('en')} />
+              <DeliveryCard icon="↓" label="Download NL" sub="PDF · Dutch version" onClick={() => generate('nl')} />
+              <DeliveryCard icon="✍" label="Send for signature" sub="Save first, then send from the contract page" onClick={save} />
+            </div>
+
+            {error && (
+              <div className="mt-4 px-3 py-2 rounded-md bg-red-500/10 border border-red-500/30 text-red-700 text-sm">
+                {error}
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="flex items-center justify-between mt-7 pt-5 border-t border-brown-light">
           <button type="button" className="btn btn-ghost" onClick={() => setStep(s => Math.max(1, s - 1))} disabled={step === 1}>
             ← Back
           </button>
-          {step < 3 ? (
+          {step < 4 ? (
             <button type="button" className="btn btn-primary" onClick={() => setStep(s => s + 1)} disabled={!picked}>
               Continue →
             </button>
           ) : (
-            <button type="button" className="btn btn-primary" onClick={save} disabled={saving || !picked}>
-              {saving ? 'Saving…' : isProposal ? 'Save proposal' : 'Save agreement'}
-            </button>
+            <div className="flex gap-2">
+              <button type="button" className="btn btn-ghost" onClick={save} disabled={saving || !picked}>
+                {saving ? 'Saving…' : isProposal ? 'Save proposal' : 'Save agreement'}
+              </button>
+              <button type="button" className="btn btn-primary" onClick={() => generate()}>
+                Generate {isProposal ? 'proposal' : 'contract'}
+              </button>
+            </div>
           )}
         </div>
       </div>

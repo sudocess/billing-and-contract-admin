@@ -40,9 +40,11 @@ export type PreviewData = {
     noticeDays: number
     includesInfrastructure: boolean
     notes: string
-    tiers?: { key: string; name: string; monthlyFee: number; includedHours: number; overageRate: number; blurb: string }[]
+    tiers?: { key: string; name: string; hourlyRate: number; includedHours: number; overageRate: number; blurb: string }[]
     recommended?: string
     selectedTier?: string | null
+    /** Codes of the agreements this plan sits alongside, never replaces. */
+    complements?: string[]
     features?: { label: string; included?: [boolean, boolean, boolean]; values: [string, string, string] }[]
   } | null
   /**
@@ -512,8 +514,17 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
   const scopeNote =
     docKind === 'extension'
       ? `<div class="note accent" style="margin-top:10px;">This is additional work, outside the scope of ${esc(extMatch ? extMatch[1] : 'the original agreement')}. That agreement remains in force unchanged; this document adds to it and is priced and signed separately.</div>`
-      : docKind === 'care' && care?.includesInfrastructure
-        ? `<div class="note accent" style="margin-top:10px;">Hosting, the database, domain registration and business email are included in the monthly fee and are not invoiced separately.</div>`
+      : docKind === 'care' && care
+        ? [
+            // Stated first, because the question a client asks on receiving a second
+            // contract is whether it changes the first one. It does not.
+            (care.complements ?? []).length
+              ? `<div class="note accent" style="margin-top:10px;"><strong>This plan stands alongside ${(care.complements ?? []).map(c => esc(c)).join(', ')}.</strong> It is a separate agreement covering ongoing support after delivery. It does not replace, alter or reduce anything agreed there, and nothing in it changes the scope, price or payment schedule of that work. Where the two ever appear to conflict, the original agreement prevails.</div>`
+              : `<div class="note accent" style="margin-top:10px;"><strong>This is a separate agreement covering ongoing support.</strong> It does not replace or alter any project agreement already in place.</div>`,
+            care.includesInfrastructure
+              ? `<div class="note" style="margin-top:10px;">Hosting, the database, domain registration and business email are included in the monthly fee and are not invoiced separately.</div>`
+              : '',
+          ].join('')
         : ''
 
   /* The three-option comparison. Included hours and the extra-hour rate are emitted
@@ -525,7 +536,9 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
     const highlight = care?.selectedTier ?? care?.recommended
     const cls = (k: string) => (k === highlight ? ' class="rec"' : '')
     const head = t.map(x => `<th${cls(x.key)}>${esc(x.name)}</th>`).join('')
-    const price = t.map(x => `<td${cls(x.key)}><strong>${fmt(x.monthlyFee)}</strong><br><span class="muted">per month</span></td>`).join('')
+    const feeOf = (x: { hourlyRate: number; includedHours: number }) =>
+      Math.round(x.hourlyRate * x.includedHours * 100) / 100
+    const price = t.map(x => `<td${cls(x.key)}><strong>${fmt(feeOf(x))}</strong><br><span class="muted">per month</span></td>`).join('')
     const hrs = t.map(x => `<td${cls(x.key)}>${x.includedHours} ${x.includedHours === 1 ? 'hour' : 'hours'}</td>`).join('')
     const over = t.map(x => `<td${cls(x.key)}>${fmt(x.overageRate)}/hr</td>`).join('')
     const blurb = t.map(x => `<td${cls(x.key)}><span class="muted">${esc(x.blurb)}</span></td>`).join('')

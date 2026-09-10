@@ -2,7 +2,7 @@
 // No database model exists yet — these mocks power the UI until a Prisma model is added.
 
 export type PlanKey = 'basic' | 'business' | 'enterprise' | 'custom'
-export type ContractType = 'standard' | 'phase' | 'extension' | 'custom'
+export type ContractType = 'standard' | 'phase' | 'extension' | 'custom' | 'care'
 export type PhaseKey = 'phase1' | 'phase2' | 'phase3' | 'phase4' | 'custom'
 export type LanguageKey = 'bilingual' | 'en' | 'nl'
 

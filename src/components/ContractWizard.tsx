@@ -1652,7 +1652,7 @@ function EditableAddonRow({
   )
 }
 
-function DeliveryCard({ icon, label, sub, onClick }: { icon: string; label: string; sub: string; onClick: () => void }) {
+export function DeliveryCard({ icon, label, sub, onClick }: { icon: string; label: string; sub: string; onClick: () => void }) {
   return (
     <button type="button" onClick={onClick} className="delivery-card">
       <div className="text-xl mb-1">{icon}</div>
