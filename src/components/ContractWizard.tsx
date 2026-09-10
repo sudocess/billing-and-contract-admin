@@ -16,6 +16,7 @@ import {
 
 type ApiClient = KnownClient & { contracts?: number; invoices?: number }
 import { generateContractHtml, type PreviewData, type Hosting } from '@/lib/contractHtml'
+import ContractDocPreview from '@/components/ContractDocPreview'
 import {
   addMonths,
   buildMonthlyInstalments,
@@ -1490,9 +1491,10 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
               >Nederlands</button>
             </div>
 
-            <div className="contract-preview">
-              <ContractPreview lang={previewLang} data={previewData} />
-            </div>
+            {/* The real document, not a second drawing of it. The hand-written preview
+                below still exists for reference but had no concept of an instalment
+                schedule, so a contract paid in monthly terms previewed as 30/40/30. */}
+            <ContractDocPreview data={previewData} />
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
               <DeliveryCard icon="↓" label="Download EN" sub="PDF · English version" onClick={() => generate('en')} />
