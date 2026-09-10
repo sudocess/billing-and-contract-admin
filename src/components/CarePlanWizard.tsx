@@ -628,79 +628,85 @@ export default function CarePlanWizard() {
             <h2 className="wstep-heading">Review</h2>
             <p className="wstep-tagline">Check the figures before this becomes a contract.</p>
 
-            <div className="rounded-lg border border-brown-light bg-brown-pale/25 p-4 mb-5">
-              <div className="text-xs font-bold uppercase tracking-wider text-brown-muted mb-2">
-                Is a plan agreed yet?
-              </div>
-              <div className="flex flex-col gap-2">
-                <label className="flex items-start gap-2.5 cursor-pointer">
-                  <input type="radio" name="agreed" checked={selectedTier === null}
-                    onChange={() => setSelectedTier(null)} className="!w-4 !h-4 mt-0.5" />
-                  <span className="text-sm text-brown-dark">
-                    <strong>Not yet — send as a proposal.</strong>
-                    <span className="block text-[12px] text-brown-subtle">
-                      The document shows all three plans with {tiers.find(t => t.key === recommended)?.name} highlighted, and states no single fee.
-                    </span>
-                  </span>
-                </label>
-                {tiers.map(t => (
-                  <label key={t.key} className="flex items-start gap-2.5 cursor-pointer">
-                    <input type="radio" name="agreed" checked={selectedTier === t.key}
-                      onChange={() => setSelectedTier(t.key)} className="!w-4 !h-4 mt-0.5" />
-                    <span className="text-sm text-brown-dark">
-                      <strong>{t.name} agreed</strong>
-                      <span className="block text-[12px] text-brown-subtle">
-                        The contract binds {fmtEuro(monthlyFee(t))}/month with {t.includedHours} included
-                        {t.includedHours === 1 ? ' hour' : ' hours'}, and extra hours at {fmtEuro(t.overageRate)}/hr.
-                      </span>
-                    </span>
-                  </label>
-                ))}
-              </div>
+            <div className="flex flex-wrap items-baseline justify-between gap-3 mb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-brown-muted">
+                {isProposal ? 'No plan agreed yet — this sends as a proposal' : 'Agreed plan'}
+              </span>
+              {!isProposal && (
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm !py-1 !text-[11px]"
+                  onClick={() => setSelectedTier(null)}
+                >
+                  Clear — send as a proposal
+                </button>
+              )}
             </div>
-            {/* What the client will see: the three plans, and the comparison beneath. */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-              {tiers.map(t => {
-                const marked = (selectedTier ?? recommended) === t.key
-                return (
-                  <div
-                    key={t.key}
-                    className={`rounded-lg border p-4 text-center ${
-                      marked ? 'border-brown-rust bg-brown-pale/40' : 'border-brown-light bg-white'
-                    }`}
-                  >
-                    <div className={`text-[10px] font-bold uppercase tracking-widest ${marked ? 'text-brown-rust' : 'text-brown-subtle'}`}>
-                      {t.name}
-                    </div>
-                    <div className="font-heading text-2xl font-black text-brown-dark tabular-nums mt-1">
-                      {fmtEuro(monthlyFee(t))}<span className="text-[13px] font-normal text-brown-subtle">/mo</span>
-                    </div>
-                    <div className="text-[12px] text-brown-rust mt-0.5">
-                      {t.includedHours} {t.includedHours === 1 ? 'hr' : 'hrs'} included · {fmtEuro(t.hourlyRate)}/hr
-                    </div>
-                    <div className="text-[11px] text-brown-subtle mt-2 pt-2 border-t border-brown-dark/10">
-                      {t.blurb || '—'}
-                    </div>
-                    {marked && (
-                      <div className="text-[10px] font-bold uppercase tracking-widest text-brown-rust mt-2">
-                        {selectedTier ? 'Agreed' : 'Recommended'}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
+            <p className="text-[12px] text-brown-subtle mt-0 mb-3">
+              {isProposal
+                ? `Pick the plan the client agreed to and the contract will bind it. Left as a proposal, the document shows all three with ${tiers.find(t => t.key === recommended)?.name} recommended and states no fee.`
+                : 'The contract binds this plan. Click it again to go back to a proposal.'}
+            </p>
 
+            {/* One table: the plan cards are its header row, so a card sits exactly
+                over the column it describes. Two separate grids drifted apart by their
+                own gaps, which is what the misalignment was. */}
             <div className="overflow-x-auto border border-brown-light rounded-lg mb-5">
-              <table className="w-full text-[12px] border-collapse min-w-[520px]">
+              <table className="w-full text-[12px] border-collapse min-w-[600px]">
+                <colgroup>
+                  <col style={{ width: '34%' }} />
+                  <col /><col /><col />
+                </colgroup>
                 <thead>
-                  <tr className="bg-brown-pale/40">
-                    <th className="text-left font-bold p-2 text-brown-subtle w-[38%]">What each plan includes</th>
-                    {tiers.map(t => (
-                      <th key={t.key} className={`p-2 font-bold ${(selectedTier ?? recommended) === t.key ? 'text-brown-rust' : 'text-brown-subtle'}`}>
-                        {t.name}
-                      </th>
-                    ))}
+                  <tr>
+                    <th className="p-2 align-bottom text-left text-brown-subtle font-bold">
+                      What each plan includes
+                    </th>
+                    {tiers.map(t => {
+                      const agreed = selectedTier === t.key
+                      const marked = (selectedTier ?? recommended) === t.key
+                      return (
+                        <th key={t.key} className="p-1.5 align-bottom">
+                          <button
+                            type="button"
+                            // Clicking the agreed plan again returns the document to a
+                            // proposal, so the decision is reversible from the control
+                            // that made it.
+                            onClick={() => setSelectedTier(agreed ? null : t.key)}
+                            aria-pressed={agreed}
+                            title={agreed ? 'Agreed — click again to go back to a proposal' : `Mark ${t.name} as the agreed plan`}
+                            className={`w-full rounded-lg border p-3 text-center transition-colors cursor-pointer ${
+                              agreed
+                                ? 'border-brown-rust border-2 bg-brown-pale/50'
+                                : marked
+                                  ? 'border-brown-rust bg-brown-pale/30 hover:bg-brown-pale/50'
+                                  : 'border-brown-light bg-white hover:border-brown-rust/50 hover:bg-brown-pale/20'
+                            }`}
+                          >
+                            <span className={`block text-[10px] font-bold uppercase tracking-widest ${marked ? 'text-brown-rust' : 'text-brown-subtle'}`}>
+                              {t.name}
+                            </span>
+                            <span className="block font-heading text-xl font-black text-brown-dark tabular-nums mt-0.5">
+                              {fmtEuro(monthlyFee(t))}
+                              <span className="text-[12px] font-normal text-brown-subtle">/mo</span>
+                            </span>
+                            <span className="block text-[11px] text-brown-rust">
+                              {t.includedHours} {t.includedHours === 1 ? 'hr' : 'hrs'} · {fmtEuro(t.hourlyRate)}/hr
+                            </span>
+                            <span className="block text-[10px] text-brown-subtle mt-1.5 pt-1.5 border-t border-brown-dark/10 font-normal normal-case tracking-normal">
+                              {t.blurb || '—'}
+                            </span>
+                            <span className="block text-[10px] font-bold uppercase tracking-widest mt-1.5">
+                              {agreed
+                                ? <span className="text-brown-rust">✓ Agreed</span>
+                                : marked
+                                  ? <span className="text-brown-rust">Recommended</span>
+                                  : <span className="text-brown-subtle/60">Choose this plan</span>}
+                            </span>
+                          </button>
+                        </th>
+                      )
+                    })}
                   </tr>
                 </thead>
                 <tbody>
