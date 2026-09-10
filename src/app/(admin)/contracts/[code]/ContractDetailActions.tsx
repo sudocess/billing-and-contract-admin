@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useState } from 'react'
 
-type Status = 'DRAFT' | 'PENDING' | 'SIGNED' | 'CANCELLED'
+type Status = 'DRAFT' | 'PENDING' | 'SIGNED' | 'SUPERSEDED' | 'CANCELLED'
 
 type DialogConfig = {
   title: string
@@ -25,7 +25,7 @@ export default function ContractDetailActions({
   clientEmail: string
 }) {
   const router = useRouter()
-  const [busy, setBusy] = useState<null | 'cancel' | 'reactivate' | 'delete' | 'sign'>(null)
+  const [busy, setBusy] = useState<null | 'cancel' | 'reactivate' | 'delete' | 'sign' | 'revise'>(null)
   const [dialog, setDialog] = useState<DialogConfig | null>(null)
   const [toast, setToast] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
@@ -108,6 +108,35 @@ export default function ContractDetailActions({
       detail: `A secure signing link will be emailed to ${clientEmail}. Once they sign, the contract status updates automatically.`,
       confirmLabel: 'Send signing link',
       onConfirm: doSendForSignature,
+    })
+  }
+
+  async function doCreateRevision() {
+    setBusy('revise')
+    try {
+      const res = await fetch(`/api/contracts/${encodeURIComponent(contractCode)}/supersede`, {
+        method: 'POST',
+      })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(j.error || 'Could not create the revision.')
+      router.push(`/contracts/${encodeURIComponent(j.new)}/edit`)
+    } catch (e) {
+      showToast('error', e instanceof Error ? e.message : 'Could not create the revision.')
+      setBusy(null)
+    }
+  }
+
+  function createRevision() {
+    if (busy) return
+    setDialog({
+      title: 'Create a revision',
+      sub: 'The current version is kept, unchanged',
+      detail:
+        `A new version of ${contractCode} will be created with the next number in the series, ` +
+        `carrying over everything from this one. This contract is marked superseded and kept as a record — ` +
+        `nothing about what was already agreed is altered.`,
+      confirmLabel: 'Create revision',
+      onConfirm: doCreateRevision,
     })
   }
 
@@ -217,6 +246,18 @@ export default function ContractDetailActions({
               <span>Send for signature</span>
             </>
           )}
+        </button>
+      )}
+
+      {status !== 'SUPERSEDED' && (
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          onClick={createRevision}
+          disabled={!!busy}
+          title="Create the next version of this contract, keeping this one as a record"
+        >
+          {busy === 'revise' ? 'Creating…' : 'Create revision'}
         </button>
       )}
 

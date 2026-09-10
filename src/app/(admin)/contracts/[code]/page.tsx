@@ -44,7 +44,7 @@ type ContractRow = {
   signingToken: string | null
   signingTokenExpiresAt: string | null
   tier2Rate: number
-  status: 'DRAFT' | 'PENDING' | 'SIGNED' | 'CANCELLED'
+  status: 'DRAFT' | 'PENDING' | 'SIGNED' | 'SUPERSEDED' | 'CANCELLED'
   createdAt: string
   updatedAt: string
   signedAt: string | null
@@ -68,6 +68,7 @@ const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
   DRAFT:     { label: 'Draft',             cls: 'bg-brown-pale text-brown-dark' },
   PENDING:   { label: 'Awaiting signature', cls: 'bg-warning/15 text-warning' },
   SIGNED:    { label: 'Signed',            cls: 'bg-success/15 text-success' },
+  SUPERSEDED:{ label: 'Superseded',        cls: 'bg-brown-dark/10 text-brown-subtle' },
   CANCELLED: { label: 'Cancelled',         cls: 'bg-brown-dark/10 text-brown-subtle' },
 }
 

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { readSession } from '@/lib/auth'
+import { nextContractVersion, parseContractCode } from '@/lib/contracts'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,7 +19,16 @@ export async function POST(
     return NextResponse.json({ error: 'Already superseded' }, { status: 409 })
   }
 
-  const newCode = `${old.contractCode}-v2`
+  // Every code already in the family, so a revision can never reuse one left behind
+  // by an earlier attempt.
+  const parsed = parseContractCode(old.contractCode)
+  const siblings = parsed
+    ? await prisma.contract.findMany({
+        where: { contractCode: { startsWith: `${parsed.year}-${parsed.client}-` } },
+        select: { contractCode: true },
+      })
+    : []
+  const newCode = nextContractVersion(old.contractCode, siblings.map((c) => c.contractCode))
 
   const result = await prisma.$transaction(async (tx) => {
     const updated = await tx.contract.update({
@@ -47,9 +57,17 @@ export async function POST(
         signingToken: null,
         signingTokenExpiresAt: null,
         sentAt: null,
+        // The signed artefacts belong to the version that was actually signed. Copying
+        // them forward would hand a fresh DRAFT someone else's signed PDF and a
+        // consent flag for a signature that never happened.
+        signedPdf: null,
+        signedPdfSha256: null,
+        signedPdfSize: null,
+        signingReference: null,
+        consentConfirmed: false,
         archivedAt: null,
         supersedesId: old.id,
-        versionNote: `Supersedes ${old.contractCode} (signed ${old.signedAt?.toISOString() ?? 'never'})`,
+        versionNote: `Revision of ${old.contractCode}${old.signedAt ? ` (signed ${old.signedAt.toISOString().slice(0, 10)})` : ' (never signed)'}`,
       },
     })
     return { old: updated, new: created }

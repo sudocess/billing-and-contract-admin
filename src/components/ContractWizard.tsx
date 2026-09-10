@@ -38,14 +38,26 @@ import {
 // Re-export PreviewData so other files can continue importing it from here
 export type { PreviewData } from '@/lib/contractHtml'
 
+export interface PastInvoice {
+  id: string
+  invoiceNumber: string
+  status: string
+  invoiceDate: string
+  grandTotal: number
+  subtotal: number
+  paidAmount: number | null
+  clientName: string
+  reference: string | null
+  contractId: string | null
+}
+
 const STEPS: { num: number; label: string; sub: string }[] = [
   { num: 1, label: 'Client details',   sub: 'Who is this for?' },
   { num: 2, label: 'Contract type',    sub: 'Plan & phase' },
   { num: 3, label: 'Project details',  sub: 'Scope & timeline' },
   { num: 4, label: 'Pricing',          sub: 'Payments & fees' },
-  { num: 5, label: 'Revisions',        sub: 'Scope & tiers' },
-  { num: 6, label: 'Add-ons',          sub: 'Extras & hosting' },
-  { num: 7, label: 'Generate',         sub: 'Preview & send' },
+  { num: 5, label: 'Add-ons',          sub: 'Extras & hosting' },
+  { num: 6, label: 'Generate',         sub: 'Preview & send' },
 ]
 
 const STEP_PROGRESS: Record<number, number> = { 1: 14, 2: 28, 3: 42, 4: 56, 5: 70, 6: 84, 7: 100 }
@@ -154,6 +166,14 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
   const [dateAnchor, setDateAnchor] = useState<DateAnchor>('end-of-month')
   const [vatRate, setVatRate] = useState<string>(String(DEFAULT_VAT_RATE))
   const [credits, setCredits] = useState<ScheduleRow[]>([])
+
+  // ── Past invoices for this client ──
+  // Pulled in so a new contract is priced against what has actually been billed
+  // rather than from memory. Selected ones become credit rows, which is what keeps
+  // the printed table adding up to the stated total.
+  const [pastInvoices, setPastInvoices] = useState<PastInvoice[]>([])
+  const [offsetIds, setOffsetIds] = useState<string[]>([])
+  const [invoicesLoading, setInvoicesLoading] = useState(false)
   const [instalments, setInstalments] = useState<ScheduleRow[]>([])
 
   // ── Step 5 ──
@@ -371,9 +391,60 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firstDueDate, dateAnchor, scheduleMode])
 
+  // Selected invoices ARE the credit rows. Deriving them rather than letting them be
+  // typed twice is what stops the contract total and the invoice history disagreeing.
+  useEffect(() => {
+    const rows: ScheduleRow[] = pastInvoices
+      .filter(i => offsetIds.includes(i.id))
+      .map(i => ({
+        id: `inv_${i.id}`,
+        label: `Invoice ${i.invoiceNumber}`,
+        note: i.paidAmount != null
+          ? `Paid ${new Date(i.invoiceDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`
+          : 'Invoiced, not yet paid',
+        amount: i.subtotal,
+        dueDate: null,
+      }))
+    setCredits(rows)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [offsetIds, pastInvoices])
+
+  // ─────────── Pull this client's past invoices when the pricing step opens ───────────
+  useEffect(() => {
+    if (step !== 4) return
+    const name = clientName.trim()
+    const mail = email.trim()
+    if (!name && !mail) { setPastInvoices([]); return }
+
+    let cancelled = false
+    setInvoicesLoading(true)
+    const qs = new URLSearchParams()
+    if (name) qs.set('name', name)
+    if (mail) qs.set('email', mail)
+    if (matchedClient?.clientCode) qs.set('clientId', matchedClient.clientCode)
+
+    fetch(`/api/invoices/for-client?${qs.toString()}`, { cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : { invoices: [] }))
+      .then(j => {
+        if (cancelled) return
+        const list: PastInvoice[] = j.invoices ?? []
+        setPastInvoices(list)
+        // Nothing is offset without being chosen. Auto-deducting would silently change
+        // the money on a contract the moment a step was opened.
+        setOffsetIds(prev => prev.filter(id => list.some(i => i.id === id)))
+      })
+      .catch(() => { if (!cancelled) setPastInvoices([]) })
+      .finally(() => { if (!cancelled) setInvoicesLoading(false) })
+
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, clientName, email])
+
   // ─────────── Step 5 default tier 2 rate by plan ───────────
   useEffect(() => {
-    if (step === 5 && tier2Rate === '') {
+    // Kept so the stored rate stays populated for the contract template; the step
+    // that used to ask for it is gone, and it is now purely a default.
+    if (step === 4 && tier2Rate === '') {
       setTier2Rate(String(PLANS[effectivePlan].rate))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -408,6 +479,11 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
 
   const creditsNet = sumRows(credits)
   const remainingNet = fromCents(toCents(total) - toCents(creditsNet))
+
+  const offsetInvoices = pastInvoices.filter(i => offsetIds.includes(i.id))
+  // NET, never gross. Deducting a VAT-inclusive figure from a VAT-exclusive contract
+  // total double-counts the VAT — the mistake that put €133.10 where €110.00 belonged.
+  const offsetNet = fromCents(offsetInvoices.reduce((a, i) => a + toCents(i.subtotal), 0))
 
   const schedule: PaymentSchedule = useMemo(
     () => ({
@@ -505,7 +581,6 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
       .catch(() => {})
   }
 
-  const skipRevisions = phase === 'phase1'
 
   // A monthly schedule whose rows don't account for the full contract value must not
   // reach the client — that mismatch is what produced a printed table of €2,389 under
@@ -519,10 +594,10 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
   function next() {
     if (blocked) return
     if (step === 1) persistClientIfNeeded()
-    if (step < 7) setStep(s => (s === 4 && skipRevisions) ? 6 : s + 1)
+    if (step < 6) setStep(s => s + 1)
   }
   function prev() {
-    if (step > 1) setStep(s => (s === 6 && skipRevisions) ? 4 : s - 1)
+    if (step > 1) setStep(s => s - 1)
   }
 
   async function generate(targetLang?: 'en' | 'nl') {
@@ -621,15 +696,14 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
       {/* Step tracker */}
       <aside className="wizard-steps">
         {STEPS.map((s, i) => {
-          const isSkipped = s.num === 5 && skipRevisions
-          const state = isSkipped ? 'skipped' : step === s.num ? 'active' : step > s.num ? 'done' : 'default'
+          const state = step === s.num ? 'active' : step > s.num ? 'done' : 'default'
           return (
             <div key={s.num}>
-              <div className={`wstep wstep-${state}`} style={isSkipped ? { opacity: 0.35 } : undefined}>
-                <div className="wstep-circle">{state === 'done' ? '\u2713' : isSkipped ? '\u2014' : s.num}</div>
+              <div className={`wstep wstep-${state}`}>
+                <div className="wstep-circle">{state === 'done' ? '\u2713' : s.num}</div>
                 <div className="wstep-text">
                   <div className="wstep-label">{s.label}</div>
-                  <div className="wstep-sub">{isSkipped ? 'N/A \u2014 Phase 1' : s.sub}</div>
+                  <div className="wstep-sub">{s.sub}</div>
                 </div>
               </div>
               {i < STEPS.length - 1 && <div className="wstep-divider" />}
@@ -850,6 +924,93 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
               </Field>
             </div>
 
+            {/* Everything already billed to this client. Tick what this contract should
+                account for; each becomes a credit row, so the printed table adds up to
+                the stated total instead of quietly falling short of it. */}
+            {(invoicesLoading || pastInvoices.length > 0) && (
+              <div className="rounded-lg border border-brown-light bg-brown-pale/25 p-4 mb-5">
+                <div className="flex items-baseline justify-between gap-3 mb-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-brown-muted">
+                    Already invoiced to {clientName.trim() || 'this client'}
+                  </span>
+                  {invoicesLoading && <span className="text-[11px] text-brown-subtle">Loading…</span>}
+                </div>
+
+                {pastInvoices.length === 0 && !invoicesLoading ? (
+                  <p className="text-[13px] text-brown-subtle m-0">No previous invoices found.</p>
+                ) : (
+                  <>
+                    <p className="text-[12px] text-brown-subtle mt-0 mb-3 leading-relaxed">
+                      Tick an invoice to deduct it from what this contract still has to collect.
+                      Amounts are deducted <strong>excluding VAT</strong>, matching how the contract total is stated.
+                    </p>
+
+                    <div className="flex flex-col gap-1.5">
+                      {pastInvoices.map(inv => {
+                        const on = offsetIds.includes(inv.id)
+                        const paid = inv.paidAmount != null
+                        return (
+                          <label
+                            key={inv.id}
+                            className={`flex items-center gap-3 rounded-md border px-3 py-2 cursor-pointer transition-colors ${
+                              on ? 'border-brown-rust/50 bg-white' : 'border-brown-light/70 bg-white/50 hover:bg-white'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={on}
+                              onChange={e =>
+                                setOffsetIds(ids =>
+                                  e.target.checked ? [...ids, inv.id] : ids.filter(x => x !== inv.id),
+                                )
+                              }
+                              className="!w-4 !h-4 shrink-0"
+                            />
+                            <span className="min-w-0 flex-1">
+                              <a
+                                href={`/invoices/${inv.id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={e => e.stopPropagation()}
+                                className="font-mono text-[12px] font-semibold text-brown-rust hover:underline"
+                              >
+                                {inv.invoiceNumber}
+                              </a>
+                              <span className="block text-[11px] text-brown-subtle truncate">
+                                {new Date(inv.invoiceDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                {inv.reference ? ` · ${inv.reference}` : ''}
+                              </span>
+                            </span>
+                            <span
+                              className={`text-[10px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded shrink-0 ${
+                                paid ? 'bg-success/15 text-success' : 'bg-warning/15 text-warning'
+                              }`}
+                            >
+                              {paid ? 'Paid' : inv.status}
+                            </span>
+                            <span className="text-right shrink-0 tabular-nums">
+                              <span className="block text-[13px] font-semibold text-brown-dark">{fmtEuro(inv.subtotal)}</span>
+                              <span className="block text-[10px] text-brown-subtle">{fmtEuro(inv.grandTotal)} incl. VAT</span>
+                            </span>
+                          </label>
+                        )
+                      })}
+                    </div>
+
+                    <div className="flex flex-wrap items-baseline justify-between gap-2 mt-3 pt-3 border-t border-brown-light text-[13px]">
+                      <span className="text-brown-subtle">
+                        {fmtEuro(total)} project value
+                        {offsetNet > 0 && <> &minus; {fmtEuro(offsetNet)} already invoiced</>}
+                      </span>
+                      <span className="font-semibold text-brown-dark tabular-nums">
+                        {fmtEuro(remainingNet)} to collect
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
             <div className="mb-4">
               <span className="block text-xs font-bold uppercase tracking-wider text-brown-muted mb-2">
                 Payment schedule
@@ -910,7 +1071,7 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
                   <button type="button" onClick={() => regenerateTerms()}
                     className="btn btn-ghost btn-sm h-[38px] col-span-2 sm:col-span-1"
                     title="Rebuild the terms, splitting the remaining balance evenly">
-                    Split evenly
+                    Recalculate
                   </button>
                 </div>
 
@@ -1164,88 +1325,6 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
         {/* ───────────── Step 5 ───────────── */}
         {step === 5 && (
           <div>
-            <h2 className="wstep-heading">Revision scope</h2>
-            <p className="wstep-tagline">Defines what kinds of changes are included, hourly, or quoted separately.</p>
-
-            <div className="rev-card">
-              <div className="flex items-center justify-between mb-2">
-                <div className="font-bold text-brown-dark text-sm">Tier 1 — Cosmetic changes</div>
-                <span className="badge badge-success">Always included</span>
-              </div>
-              <div className="text-xs text-brown-subtle leading-relaxed">
-                Color, font, spacing, copy tweaks. Unlimited rounds within each phase. No extra charge ever.
-              </div>
-            </div>
-
-            <div className="rev-card">
-              <div className="flex items-center justify-between mb-2">
-                <div className="font-bold text-brown-dark text-sm">Tier 2 — Structural changes</div>
-                {tier2Available
-                  ? <span className="badge badge-warning">Charged at hourly rate</span>
-                  : <span className="badge badge-neutral">Not available in Phase 1</span>
-                }
-              </div>
-              <div className="text-xs text-brown-subtle leading-relaxed mb-3">
-                {tier2Available
-                  ? 'Layout restructure, new sections, navigation changes. Scoped per request.'
-                  : 'Structural changes are not applicable in Phase 1. The client must raise all change requests at Phase 1 sign-off before Phase 2 begins. It is the client\u2019s responsibility.'
-                }
-              </div>
-              {tier2Available && (
-                <>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-sm">
-                    <Field label="Hourly rate (€)">
-                      <input type="number" step="1" value={tier2Rate} onChange={e => setTier2Rate(e.target.value)} />
-                    </Field>
-                  </div>
-                  <div className="info-note mt-3">
-                    Advised rate for the {planMeta.label} plan: €{PLANS[effectivePlan].rate}/hr. Adjust if needed.
-                  </div>
-                </>
-              )}
-            </div>
-
-            {contractType !== 'custom' ? (
-              <div className="rev-card">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="font-bold text-brown-dark text-sm">Tier 3 — New features</div>
-                  <span className="badge" style={{ background: '#fce8e0', color: '#8b3a1e' }}>Quoted separately</span>
-                </div>
-                <div className="text-xs text-brown-subtle leading-relaxed mb-3">
-                  Sign-up flows, booking apps, payments, user data. Requires a separate addendum. Third-party costs (Supabase, Vercel) passed through at cost.
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {(['basic', 'business', 'enterprise'] as PlanKey[]).map(p => {
-                    const isActivePlan = p === effectivePlan
-                    return (
-                      <div key={p} className={`rate-card ${isActivePlan ? 'rate-card-active' : ''}`}>
-                        <div className="text-[0.7rem] uppercase tracking-wider text-brown-subtle">{PLANS[p].label}</div>
-                        <div className="font-heading font-black text-sm text-brown-dark">€{PLANS[p].rate}/hr</div>
-                      </div>
-                    )
-                  })}
-                </div>
-                <div className="text-[0.72rem] text-brown-subtle mt-3">
-                  Active plan is highlighted. Supabase &amp; Vercel costs are always passed through at cost on top of the hourly rate.
-                </div>
-              </div>
-            ) : (
-              <div className="rev-card" style={{ opacity: 0.6 }}>
-                <div className="flex items-center justify-between mb-2">
-                  <div className="font-bold text-brown-dark text-sm">Tier 3 — New features</div>
-                  <span className="badge badge-neutral">Not applicable</span>
-                </div>
-                <div className="text-xs text-brown-subtle leading-relaxed">
-                  Tier 3 does not apply to custom agreements — any new feature work is quoted ad-hoc and billed against the negotiated total.
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ───────────── Step 6 ───────────── */}
-        {step === 6 && (
-          <div>
             <h2 className="wstep-heading">Add-ons & hosting</h2>
             <p className="wstep-tagline">
               {contractType === 'custom'
@@ -1393,7 +1472,7 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
         )}
 
         {/* ───────────── Step 7 ───────────── */}
-        {step === 7 && (
+        {step === 6 && (
           <div>
             <h2 className="wstep-heading">Generate contract</h2>
             <p className="wstep-tagline">Review the legally-formatted contract, choose a language, then download or send for signature.</p>
@@ -1426,7 +1505,7 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
         {/* Footer nav */}
         <div className="wizard-footer">
           <button type="button" className="btn btn-ghost" onClick={prev} disabled={step === 1}>← Back</button>
-          {step < 7 ? (
+          {step < 6 ? (
             <button
               type="button"
               className="btn btn-primary"

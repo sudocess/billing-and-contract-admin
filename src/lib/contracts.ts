@@ -144,6 +144,47 @@ export function upsertKnownClient(updates: Partial<KnownClient> & { name: string
   return created
 }
 
+/**
+ * Contract codes are `YYYY-<client>-<NNNN>`, and the last segment is the VERSION.
+ *
+ * `2026-9025467-0001` is the original agreement; `2026-9025467-0002` is the revision
+ * that replaces it. Keeping the middle segment identical is what makes a family of
+ * revisions recognisable at a glance, in a filename, or read down the phone.
+ *
+ * The previous scheme appended `-v2`, which produced `...-0001-v2` and then
+ * `...-0001-v2-v2` on the next revision — the code stopped being parseable at exactly
+ * the point a contract had been revised more than once.
+ */
+const CODE_SHAPE = /^(\d{4})-([A-Za-z0-9]+)-(\d{4})$/
+
+export function parseContractCode(code: string): { year: string; client: string; version: number } | null {
+  const m = CODE_SHAPE.exec(code.trim())
+  if (!m) return null
+  return { year: m[1], client: m[2], version: Number(m[3]) }
+}
+
+/**
+ * The next version in the same family, e.g. `2026-9025467-0001` -> `2026-9025467-0002`.
+ *
+ * `taken` lets the caller skip codes already in the database, so a gap left by an
+ * earlier revision can never produce a duplicate.
+ */
+export function nextContractVersion(code: string, taken: Iterable<string> = []): string {
+  const parsed = parseContractCode(code)
+  // Codes that predate this shape keep the old suffix behaviour rather than being
+  // silently renamed — renaming an issued contract is never worth the tidiness.
+  if (!parsed) return `${code}-v2`
+
+  const used = new Set(taken)
+  let next = parsed.version + 1
+  let candidate = `${parsed.year}-${parsed.client}-${String(next).padStart(4, '0')}`
+  while (used.has(candidate)) {
+    next += 1
+    candidate = `${parsed.year}-${parsed.client}-${String(next).padStart(4, '0')}`
+  }
+  return candidate
+}
+
 export function nextContractId(clientCode: string, phaseIndex: number): string {
   const year = new Date().getFullYear()
   const padded = String(phaseIndex).padStart(4, '0')
