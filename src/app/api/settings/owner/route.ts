@@ -28,6 +28,7 @@ export async function POST(req: Request) {
       accountHolder: body.accountHolder ?? 'Engaging UX Design',
       ownVat: body.ownVat ?? '',
       ownKvk: body.ownKvk ?? '',
+      notifyEmail: (body.notifyEmail ?? '').trim(),
     },
     update: {
       iban: body.iban ?? '',
@@ -36,6 +37,7 @@ export async function POST(req: Request) {
       accountHolder: body.accountHolder ?? 'Engaging UX Design',
       ownVat: body.ownVat ?? '',
       ownKvk: body.ownKvk ?? '',
+      notifyEmail: (body.notifyEmail ?? '').trim(),
     },
   })
   return NextResponse.json(settings)

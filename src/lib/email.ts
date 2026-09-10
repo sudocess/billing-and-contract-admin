@@ -252,7 +252,7 @@ export async function sendSignedConfirmationToClient(opts: SendSignedConfirmatio
   await transporter.sendMail({
     from: process.env.SMTP_FROM || 'Engaging UX Design <info@engaginguxdesign.com>',
     to: opts.to,
-    subject: `Signed: Service Agreement ${opts.contractCode} — Engaging UX Design`,
+    subject: `Signed: Service Agreement ${opts.contractCode}, Engaging UX Design`,
     html,
     attachments: [{
       filename: `Signed-Agreement-${opts.contractCode}.pdf`,
@@ -269,6 +269,16 @@ interface SendSignedNotificationOptions {
   signedAt: Date
   signerIp: string
   pdfBuffer: Buffer
+  /**
+   * Where the notification goes.
+   *
+   * Was hard-coded to SMTP_USER, the mailbox the app sends from, which is not
+   * necessarily the inbox anyone reads. Set in Settings; falls back to the old
+   * behaviour when empty.
+   */
+  to?: string
+  /** Link straight to the contract in the admin app, so the mail is actionable. */
+  contractUrl?: string
 }
 
 export async function sendSignedNotificationToAdmin(opts: SendSignedNotificationOptions) {
@@ -282,8 +292,9 @@ export async function sendSignedNotificationToAdmin(opts: SendSignedNotification
 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0e8de;padding:32px 0;">
 <tr><td align="center">
 <table width="600" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(28,16,8,0.08);">
-<tr><td style="background:#1c1008;padding:28px 32px;">
-  <div style="font-family:Helvetica,Arial,sans-serif;font-size:18px;font-weight:bold;color:#f7ede2;">Contract signed — Admin notification</div>
+<tr><td style="background:#1c1008;padding:28px 24px;">
+  <div style="font-family:Helvetica,Arial,sans-serif;font-size:19px;font-weight:bold;color:#f7ede2;">Contract signed</div>
+  <div style="font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#d9c3af;padding-top:4px;">${escapeHtml(opts.clientName)} signed ${escapeHtml(opts.contractCode)}</div>
 </td></tr>
 <tr><td style="padding:28px 32px;">
   <div style="font-family:Helvetica,Arial,sans-serif;font-size:14px;color:#3b2110;line-height:1.8;">
@@ -296,19 +307,27 @@ export async function sendSignedNotificationToAdmin(opts: SendSignedNotification
 </td></tr>
 <tr><td style="padding:0 32px 28px;">
   <div style="font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#7a5a40;background:#f7ede2;border-left:3px solid #8b3a1e;padding:10px 14px;border-radius:0 6px 6px 0;">
-    📎 Signed contract attached.
+    The signed contract is attached, and the same copy is stored on the contract record.
   </div>
+  ${opts.contractUrl ? `<div style="padding-top:18px;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+      <tr><td bgcolor="#8b3a1e" style="background:#8b3a1e;border-radius:8px;">
+        <a href="${escapeHtml(opts.contractUrl)}" style="display:block;padding:13px 24px;font-family:Helvetica,Arial,sans-serif;font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none;border-radius:8px;">Open the contract &rarr;</a>
+      </td></tr>
+    </table>
+  </div>` : ''}
 </td></tr>
 </table>
 </td></tr>
 </table>
 </body></html>`
 
-  const adminEmail = process.env.SMTP_USER || 'info@engaginguxdesign.com'
+  const adminEmail = (opts.to || '').trim() || process.env.SMTP_USER || 'info@engaginguxdesign.com'
   await transporter.sendMail({
     from: process.env.SMTP_FROM || 'Engaging UX Design <info@engaginguxdesign.com>',
     to: adminEmail,
-    subject: `✓ Contract signed: ${opts.contractCode} — ${opts.clientName}`,
+    replyTo: opts.clientEmail || undefined,
+    subject: `Signed: ${opts.contractCode}, ${opts.clientName}`,
     html,
     attachments: [{
       filename: `Signed-Agreement-${opts.contractCode}.pdf`,

@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma'
 import { generateContractHtml, type PreviewData } from '@/lib/contractHtml'
 import { htmlToPdf } from '@/lib/htmlToPdf'
 import { sendSignedConfirmationToClient, sendSignedNotificationToAdmin } from '@/lib/email'
+import { requestOrigin } from '@/lib/appUrl'
 import { recordEvent } from '@/lib/contractEvents'
 
 export const dynamic = 'force-dynamic'
@@ -151,6 +152,18 @@ export async function POST(
     }).catch(err => console.error('[sign] client confirmation email failed', err))
   }
 
+  /* Tell the owner, at the address they actually read.
+     Still non-blocking, because a signature must never fail because a notification
+     did. But a failure is now written to the contract's own trail rather than only
+     to a server log nobody opens, so "did I get told about this" has an answer on
+     the contract page. */
+  const notifyTo = await prisma.ownerSettings
+    .findUnique({ where: { id: 'singleton' }, select: { notifyEmail: true } })
+    .then(s => (s?.notifyEmail || '').trim())
+    .catch(() => '')
+
+  const origin = requestOrigin(req)
+
   sendSignedNotificationToAdmin({
     contractCode: contract.contractCode,
     clientName: contract.clientName,
@@ -158,7 +171,21 @@ export async function POST(
     signedAt,
     signerIp: ip,
     pdfBuffer,
-  }).catch(err => console.error('[sign] admin notification email failed', err))
+    to: notifyTo,
+    contractUrl: origin
+      ? `${origin}/contracts/${encodeURIComponent(contract.contractCode)}`
+      : undefined,
+  })
+    .then(() =>
+      recordEvent(contract.id, 'signed',
+        `Signing notification emailed to ${notifyTo || 'the sending mailbox'}`, 'system'),
+    )
+    .catch(err => {
+      console.error('[sign] admin notification email failed', err)
+      return recordEvent(contract.id, 'signed',
+        `Signing notification could NOT be emailed: ${err instanceof Error ? err.message : 'unknown mail error'}`,
+        'system')
+    })
 
   return NextResponse.json({ ok: true })
 }

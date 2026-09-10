@@ -25,6 +25,7 @@ export default function SettingsClient({ currentEmail }: { currentEmail: string 
   const [ownerAccountHolder, setOwnerAccountHolder] = useState('Engaging UX Design')
   const [ownerVat, setOwnerVat] = useState('')
   const [ownerKvk, setOwnerKvk] = useState('')
+  const [notifyEmail, setNotifyEmail] = useState('')
   const [savingOwner, setSavingOwner] = useState(false)
   const [ownerBanner, setOwnerBanner] = useState<Banner>(null)
 
@@ -38,6 +39,7 @@ export default function SettingsClient({ currentEmail }: { currentEmail: string 
         setOwnerAccountHolder(s.accountHolder ?? 'Engaging UX Design')
         setOwnerVat(s.ownVat ?? '')
         setOwnerKvk(s.ownKvk ?? '')
+        setNotifyEmail(s.notifyEmail ?? '')
       })
       .catch(() => {})
   }, [])
@@ -57,10 +59,11 @@ export default function SettingsClient({ currentEmail }: { currentEmail: string 
           accountHolder: ownerAccountHolder,
           ownVat: ownerVat,
           ownKvk: ownerKvk,
+          notifyEmail,
         }),
       })
       if (!res.ok) throw new Error('Save failed')
-      setOwnerBanner({ type: 'success', text: 'Business details saved — these will now pre-fill on new invoices.' })
+      setOwnerBanner({ type: 'success', text: 'Saved. These pre-fill on every new invoice.' })
     } catch {
       setOwnerBanner({ type: 'error', text: 'Failed to save. Please try again.' })
     } finally {
@@ -279,6 +282,21 @@ export default function SettingsClient({ currentEmail }: { currentEmail: string 
               <input type="text" value={ownerKvk} onChange={e => setOwnerKvk(e.target.value)} placeholder="12345678" />
             </Field>
           </div>
+
+          <div className="pt-4 border-t border-brown-light">
+            <Field
+              label="Send signing notifications to"
+              hint="Where to email you when a client signs a contract. Leave empty to use the mailbox the app sends from."
+            >
+              <input
+                type="email"
+                value={notifyEmail}
+                onChange={e => setNotifyEmail(e.target.value)}
+                placeholder="you@example.com"
+              />
+            </Field>
+          </div>
+
           {ownerBanner && <Banner banner={ownerBanner} />}
           <div className="flex justify-end">
             <button

@@ -405,6 +405,10 @@ model OwnerSettings {
   accountHolder String   @default("Engaging UX Design")
   ownVat        String   @default("")
   ownKvk        String   @default("")
+  /// Where "a client signed" notifications go. Empty means fall back to the mailbox
+  /// the app sends from, which is what the code did before this was configurable, and
+  /// is not necessarily the inbox the owner actually reads.
+  notifyEmail   String   @default("")
   updatedAt     DateTime @updatedAt
 
   @@map("owner_settings")
