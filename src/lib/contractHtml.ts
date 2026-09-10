@@ -561,7 +561,7 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
         <strong>Billing and notice.</strong> This plan runs monthly. There is no minimum term and no annual commitment: it continues month to month until either party ends it with ${c.noticeDays} days&rsquo; written notice, and the plan may be moved up or down at any month boundary on the same notice. Any change to the fee is given 60 days&rsquo; written notice, and no change applies to a month already paid for. The fee is payable monthly in advance.${c.includesInfrastructure ? ' All third-party infrastructure covered by this plan is included in the monthly fee, with no separate pass-through invoices.' : ''}
       </div>
       <div class="note">
-        <strong>If an invoice is overdue.</strong> Delivery or release of outstanding work is paused until payment is received. The website, the business email, the domain name and access to the administration application are not suspended, withheld or allowed to lapse for non-payment. On cancellation, a full export of website files, database and client data is provided at no charge, and no service is switched off before the transfer is complete.
+        <strong>If an invoice is overdue.</strong> Delivery or release of outstanding work is paused until payment is received. Where an amount remains unpaid 60 days after its due date, section 12 applies and the systems covered by this plan may be taken offline. A full export of website files, database and personal data is provided free of charge on request at any time, including while systems are offline, and the domain name is never withheld or allowed to lapse.
       </div>`
   }
 
@@ -649,7 +649,7 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
         </tbody>
       </table>
       <div class="note">
-        Invoices are payable within 30 days of invoice date. Late payments are subject to contractually agreed interest of 1% per month, in addition to any statutory commercial interest due under art. 6:119a BW and a &euro;25 administrative fee per reminder issued after the first. Where an invoice is overdue, delivery or release of outstanding deliverables is paused until payment is received.${paymentNote ? ' ' + paymentNote : ''}${addonExclusionNote}
+        Invoices are payable within 30 days of invoice date. Late payments are subject to contractually agreed interest of 1% per month, in addition to any statutory commercial interest due under art. 6:119a BW and a &euro;25 administrative fee per reminder issued after the first. Where an invoice is overdue, delivery or release of outstanding deliverables is paused until payment is received, and section 12 sets out what happens if it stays unpaid.${paymentNote ? ' ' + paymentNote : ''}${addonExclusionNote}
       </div>`
 
   /* What this extension does not cover.
@@ -1080,12 +1080,17 @@ ${section5}
 
     <div class="section">
       <div class="section-label">11. Limitation of Liability</div>
-      <p class="clause">To the maximum extent permitted by Dutch law, Engaging UX Design's total liability shall not exceed the total fees paid for this project. No liability is accepted for indirect, consequential, or incidental loss, including loss of revenue, data, or profits.</p>
+      <p class="clause">To the maximum extent permitted by Dutch law, Engaging UX Design's total liability shall not exceed the total fees payable under this agreement. No liability is accepted for indirect, consequential, or incidental loss, including loss of revenue, data, or profits.</p>
     </div>
 
     <div class="section">
       <div class="section-label">12. Cancellation &amp; Termination</div>
       <p class="clause">Either party may terminate this agreement by written notice of not less than <strong>14 days</strong>. Either party may terminate with immediate effect if the other commits a material breach that remains unremedied 14 days after written notice, or is declared bankrupt, is granted suspension of payments, or ceases to trade.</p>
+      <p class="clause"><strong>If a payment is not made.</strong> Where an invoice or a scheduled payment term is not paid by its due date, the following applies in order, and written notice is given at each step.</p>
+      <p class="clause"><strong>From 14 days after the due date.</strong> Engaging UX Design issues a written reminder and makes contact by telephone or email. All undelivered work is paused. Ownership of custom deliverables, source code and any domain does not transfer while any amount is outstanding.</p>
+      <p class="clause"><strong>From 60 days after the due date.</strong> Where the amount is still unpaid and no payment arrangement has been agreed in writing, Engaging UX Design may close the project and take the website, the administration application and any connected systems offline. Not less than <strong>7 days&rsquo; written notice</strong> is given before this happens.</p>
+      <p class="clause"><strong>Nothing is deleted, and everything is restored.</strong> All content, files and data are retained in full. Within <strong>5 business days</strong> of payment being received in full, the systems are restored to live exactly as they were.</p>
+      <div class="note accent"><strong>The client&rsquo;s data remains the client&rsquo;s throughout.</strong> A complete export of website files, the database and all personal data held on the client&rsquo;s behalf is provided free of charge on written request at any time, including while systems are offline. Personal data is never withheld as security for payment. Any domain registered on the client&rsquo;s behalf is kept renewed and is transferred to the client on written request, whatever the state of the account.</div>
       <p class="clause">Upon termination, completed work is invoiced at the applicable milestone rate; outstanding invoices remain due; and deliverables transfer only after full payment. Where the client terminates for convenience, the client owes the fees for work performed and costs already committed up to the termination date, less any costs Engaging UX Design demonstrably saves by not completing the work. The parties agree that this settles any claim under article 7:764 BW. Inactivity and archiving are governed by section 8; a project archived under that section resumes only on payment of a further project initiation fee.</p>
     </div>
 
