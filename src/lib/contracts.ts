@@ -21,10 +21,10 @@ export const ADDON_PRICES: Record<PlanKey, { seo: number; logo: number; support:
 }
 
 export const PHASE_LABELS: Record<PhaseKey, string> = {
-  phase1: 'Phase 1 — Strategy & Structure',
-  phase2: 'Phase 2 — Design & Prototype',
-  phase3: 'Phase 3 — Build & Launch',
-  phase4: 'Phase 4 — Handover & Acceptance',
+  phase1: 'Phase 1: Strategy & Structure',
+  phase2: 'Phase 2: Design & Prototype',
+  phase3: 'Phase 3: Build & Launch',
+  phase4: 'Phase 4: Handover & Acceptance',
   custom: 'Custom phase',
 }
 

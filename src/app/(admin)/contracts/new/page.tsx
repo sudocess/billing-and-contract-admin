@@ -13,20 +13,31 @@ const KINDS = [
   {
     href: '/contracts/new/project',
     title: 'New contract',
-    desc: 'A project agreed before the work starts. Scope, phases and a payment schedule.',
-    meta: '6 steps',
+    lead: 'The main agreement for a piece of work.',
+    desc:
+      'Use this when a project is agreed before it starts. It sets the scope, the phases, '
+      + 'the total price and how it is paid, and everything else a client signs hangs off it.',
+    meta: 'Starts with the client',
   },
   {
     href: '/contracts/new/care',
     title: 'Care plan',
-    desc: 'Recurring monthly support for a client you already work with. Hours and rate are set per client.',
-    meta: 'Pick a client',
+    lead: 'Monthly support after a project is delivered.',
+    desc:
+      'Use this once the work is live and the client wants it kept running. Hours and rate are '
+      + 'set per client, it runs month to month with no minimum term, and it sits alongside the '
+      + 'main agreement without changing it.',
+    meta: 'Starts with the client',
   },
   {
     href: '/contracts/new/extension',
     title: 'Scope extension',
-    desc: 'Work beyond what an existing agreement covers, priced separately. The original stays in force.',
-    meta: 'Pick a contract',
+    lead: 'Work beyond what an agreement already covers.',
+    desc:
+      'Use this when a client asks for something outside the original scope, like a new section '
+      + 'or a feature nobody planned for. It is priced and signed on its own, and the agreement '
+      + 'it extends carries on unchanged.',
+    meta: 'Starts with the contract',
   },
 ] as const
 
@@ -41,19 +52,25 @@ export default function ChooseContractKindPage() {
       <div className="p-4 sm:p-7 flex-1">
         <div className="max-w-4xl">
           <p className="text-sm text-brown-subtle mb-5 max-w-2xl">
-            Three kinds of agreement. A <strong className="text-brown-dark">revision</strong> is
-            something else again — you create one from an existing contract when its terms need to
-            change, and it takes the next version number.
+            Three kinds of agreement, each with its own contract number and its own signature.
+            A <strong className="text-brown-dark">revision</strong> is not one of them: you create
+            a revision from an existing contract when its terms need to change, and it takes the
+            next version number of that same contract.
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {KINDS.map(k => (
-              <Link key={k.href} href={k.href} className="type-card text-left flex flex-col gap-2 no-underline">
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="font-heading text-base font-bold text-brown-dark">{k.title}</span>
-                </div>
+              <Link
+                key={k.href}
+                href={k.href}
+                className="type-card text-left flex flex-col gap-2 no-underline"
+              >
+                <span className="font-heading text-base font-bold text-brown-dark">{k.title}</span>
+                <span className="text-[13px] font-semibold text-brown-dark/80 leading-snug">
+                  {k.lead}
+                </span>
                 <span className="text-[13px] text-brown-subtle leading-relaxed flex-1">{k.desc}</span>
-                <span className="text-[10px] font-bold uppercase tracking-widest text-brown-subtle/80">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-brown-subtle/80 pt-1 border-t border-brown-dark/10">
                   {k.meta}
                 </span>
               </Link>

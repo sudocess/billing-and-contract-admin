@@ -241,7 +241,7 @@ export default function CarePlanWizard() {
     contractType: 'care',
     plan: 'custom',
     phase: 'custom',
-    phaseLabel: 'Care plan — monthly support',
+    phaseLabel: 'Care plan: monthly support',
     projectName: 'Care plan',
     deliverables: notes.trim() || `Monthly support: ${hoursNum} hours included at €${rateNum}/hr.`,
     phaseStart: startDate,
@@ -292,7 +292,7 @@ export default function CarePlanWizard() {
           contractType: 'care',
           plan: 'custom',
           phase: 'custom',
-          phaseLabel: 'Care plan — monthly support',
+          phaseLabel: 'Care plan: monthly support',
           language: previewLang,
           projectName: 'Care plan',
           deliverables: previewData.deliverables,
@@ -473,7 +473,7 @@ export default function CarePlanWizard() {
                       </label>
                     </div>
 
-                    {/* Derived, never typed — the rate is the decision, the fee follows. */}
+                    {/* Derived, never typed, the rate is the decision, the fee follows. */}
                     <div className="mt-2 rounded border border-brown-light bg-white px-2 py-1.5">
                       <span className="block text-[10px] font-bold uppercase tracking-widest text-brown-subtle">Monthly fee</span>
                       <span className="font-heading text-lg font-black text-brown-dark tabular-nums">
@@ -522,7 +522,7 @@ export default function CarePlanWizard() {
             </div>
 
             {/* The comparison the client actually reads. Included hours and the extra-hour
-                rate are not rows here — they are printed from the tier figures above, so
+                rate are not rows here, they are printed from the tier figures above, so
                 the table can never contradict the prices. */}
             <div className="mb-5">
               <div className="flex items-baseline justify-between gap-3 mb-2">
@@ -679,7 +679,7 @@ export default function CarePlanWizard() {
                   <tr>
                     <th className="p-2.5 align-bottom text-left">
                       <span className="block text-[10px] font-semibold uppercase tracking-wide text-brown-subtle/70 leading-snug">
-                        ✓ included · — not included
+                        ✓ included ·, not included
                       </span>
                     </th>
                     {tiers.map(t => {

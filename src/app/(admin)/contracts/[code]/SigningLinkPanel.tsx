@@ -62,7 +62,7 @@ export default function SigningLinkPanel({
       setCopied(true)
       setTimeout(() => setCopied(false), 2500)
     } catch {
-      setError('Could not reach the clipboard — select the link and copy it by hand.')
+      setError('Could not reach the clipboard, select the link and copy it by hand.')
     }
   }
 
@@ -94,7 +94,7 @@ export default function SigningLinkPanel({
 
       <p className="text-[13px] text-brown-subtle leading-relaxed mb-3">
         Anyone with this link can sign as the client, so share it the way you would a password.
-        Sending it here is not required — <strong className="text-brown-dark">Send for signature</strong> emails
+        Sending it here is not required, <strong className="text-brown-dark">Send for signature</strong> emails
         it to the client directly.
       </p>
 

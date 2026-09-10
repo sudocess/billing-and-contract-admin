@@ -64,7 +64,7 @@ export default function InvoiceActions({ invoice }: InvoiceActionsProps) {
       setPayModal(false)
       setToast(
         j.shortfall > 0
-          ? `Recorded ${invoice.currency}${amount.toFixed(2)} — ${invoice.currency}${j.shortfall.toFixed(2)} still outstanding`
+          ? `Recorded ${invoice.currency}${amount.toFixed(2)}, ${invoice.currency}${j.shortfall.toFixed(2)} still outstanding`
           : `Recorded as paid on ${paidAt}`,
       )
       router.refresh()
@@ -130,7 +130,7 @@ export default function InvoiceActions({ invoice }: InvoiceActionsProps) {
                 <span className="block text-[11px] text-brown-subtle mt-1">
                   Invoiced {invoice.currency}{invoice.grandTotal.toFixed(2)}.
                   {Number(paidAmount) > 0 && Number(paidAmount) < invoice.grandTotal
-                    ? ` Short by ${invoice.currency}${(invoice.grandTotal - Number(paidAmount)).toFixed(2)} — the term will offer to invoice the remainder.`
+                    ? ` Short by ${invoice.currency}${(invoice.grandTotal - Number(paidAmount)).toFixed(2)}, the term will offer to invoice the remainder.`
                     : ' Enter what actually arrived, not what was billed.'}
                 </span>
               </label>

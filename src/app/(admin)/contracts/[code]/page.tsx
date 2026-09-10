@@ -217,7 +217,7 @@ export default function ViewContractPage() {
             status={contract.status}
             clientEmail={contract.dedicatedEmail || contract.clientEmail || ''}
           />
-          {/* Shown for anything ever signed, including cancelled contracts — the
+          {/* Shown for anything ever signed, including cancelled contracts, the
               signed document stays retrievable regardless of the contract's status.
               The route explains itself if the contract predates PDF storage. */}
           {contract.signedAt && (
@@ -386,7 +386,7 @@ export default function ViewContractPage() {
                   )}
                   {computed.creditsNet > 0 && (
                     <div className="mt-3 text-[11px] text-brown-subtle">
-                      {fmtEur(computed.creditsNet)} already invoiced — listed above for completeness, not payable again.
+                      {fmtEur(computed.creditsNet)} already invoiced, listed above for completeness, not payable again.
                     </div>
                   )}
                 </div>
@@ -410,7 +410,7 @@ export default function ViewContractPage() {
                 <div className="text-xs font-bold text-brown-subtle uppercase tracking-wider mb-4">Add-ons & hosting</div>
                 <div className="space-y-2 text-sm">
                   {hosting && (
-                    <Row label={`Hosting — ${hosting.mode}`} amount={hosting.hostingPrice + hosting.domainPrice} note={hosting.domainPrice ? `incl. domain ${fmtEur(hosting.domainPrice)}` : undefined} />
+                    <Row label={`Hosting, ${hosting.mode}`} amount={hosting.hostingPrice + hosting.domainPrice} note={hosting.domainPrice ? `incl. domain ${fmtEur(hosting.domainPrice)}` : undefined} />
                   )}
                   {addons?.seo?.on && <Row label="SEO setup" amount={addons.seo.price} />}
                   {addons?.logo?.on && <Row label="Logo design" amount={addons.logo.price} note={addons.logo.note} />}
@@ -590,7 +590,7 @@ function TermInvoicing({
           title={
             inv.paidAmount != null
               ? `Received ${fmtEur(inv.paidAmount)} of ${fmtEur(inv.grandTotal)}`
-              : `Invoiced ${fmtEur(inv.grandTotal)} — payment not yet confirmed`
+              : `Invoiced ${fmtEur(inv.grandTotal)}, payment not yet confirmed`
           }
         >
           <span>{inv.invoiceNumber}</span>

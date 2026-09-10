@@ -50,7 +50,7 @@ export default function PaymentLinkPanel({
       setSavedUrl(j.paymentLinkUrl)
       setUrl(j.paymentLinkUrl)
       setAddedAt(j.paymentLinkAt)
-      setOk('Saved — it will be included in the invoice email.')
+      setOk('Saved, it will be included in the invoice email.')
       router.refresh()
       setTimeout(() => setOk(''), 4000)
     } catch (e) {
@@ -81,7 +81,7 @@ export default function PaymentLinkPanel({
             className={`text-[11px] font-semibold ${stale ? 'text-warning' : 'text-brown-subtle'}`}
           >
             {age === 0 ? 'Added today' : `Added ${age} day${age === 1 ? '' : 's'} ago`}
-            {stale ? ' — check it still works' : ''}
+            {stale ? ', check it still works' : ''}
           </span>
         )}
       </div>

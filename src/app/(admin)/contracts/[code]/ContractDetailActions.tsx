@@ -133,7 +133,7 @@ export default function ContractDetailActions({
       sub: 'The current version is kept, unchanged',
       detail:
         `A new version of ${contractCode} will be created with the next number in the series, ` +
-        `carrying over everything from this one. This contract is marked superseded and kept as a record — ` +
+        `carrying over everything from this one. This contract is marked superseded and kept as a record, ` +
         `nothing about what was already agreed is altered.`,
       confirmLabel: 'Create revision',
       onConfirm: doCreateRevision,
@@ -236,7 +236,7 @@ export default function ContractDetailActions({
           className="btn btn-ghost btn-sm"
           onClick={sendForSignature}
           disabled={!!busy}
-          title={clientEmail ? `Send signing link to ${clientEmail}` : 'No client email — add one first'}
+          title={clientEmail ? `Send signing link to ${clientEmail}` : 'No client email, add one first'}
         >
           {busy === 'sign' ? (
             'Sending…'

@@ -641,7 +641,7 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
         const j = await res.json().catch(() => ({}))
         throw new Error(j.error || 'Save failed')
       }
-      setSaveStatus({ type: 'success', text: `Saved — ${contractId}` })
+      setSaveStatus({ type: 'success', text: `Saved, ${contractId}` })
       setTimeout(() => router.push(`/contracts/${encodeURIComponent(contractId)}`), 1200)
     } catch (e) {
       setSaveStatus({ type: 'error', text: e instanceof Error ? e.message : 'Save failed' })
@@ -727,7 +727,7 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
           <div>
             <h2 className="wstep-heading">Client details</h2>
             <p className="wstep-tagline">
-              Existing clients are auto-filled from history. Add any missing details — they will be saved when you continue.
+              Existing clients are auto-filled from history. Add any missing details, they will be saved when you continue.
             </p>
 
             {matchedClient && <ClientMatchCard matchedClient={matchedClient} />}
@@ -885,7 +885,7 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
                   hint={
                     deliverables.trim()
                       ? 'Start a line with • for a point and - for a detail beneath it. Bare lines become section headings.'
-                      : 'Required — this becomes section 3, Scope of Work, on the contract.'
+                      : 'Required, this becomes section 3, Scope of Work, on the contract.'
                   }
                 >
                   <textarea
@@ -911,7 +911,7 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
         {step === 4 && (
           <div>
             <h2 className="wstep-heading">Pricing & payments</h2>
-            <p className="wstep-tagline">Pre-filled from the selected plan. Adjust the totals — the breakdown updates live.</p>
+            <p className="wstep-tagline">Pre-filled from the selected plan. Adjust the totals, the breakdown updates live.</p>
 
             {contractType === 'custom' && (
               <div className="info-note mb-4">
@@ -1043,10 +1043,10 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
 
             {scheduleMode === 'phases' ? (
               <div className="breakdown-card">
-                <BreakdownRow label="Phase 1 (30%) — before work starts" value={fmtEur(breakdown.p1)} />
+                <BreakdownRow label="Phase 1 (30%), before work starts" value={fmtEur(breakdown.p1)} />
                 <BreakdownRow label="Initiation fee deducted" value={initial > 0 ? '\u2212 €' + fmtPlain(initial) : '—'} />
-                <BreakdownRow label="Phase 2 (40%) — after Phase 2 approval" value={fmtEur(breakdown.p2)} />
-                <BreakdownRow label="Phase 3 (30%) — before publishing" value={fmtEur(breakdown.p3)} />
+                <BreakdownRow label="Phase 2 (40%), after Phase 2 approval" value={fmtEur(breakdown.p2)} />
+                <BreakdownRow label="Phase 3 (30%), before publishing" value={fmtEur(breakdown.p3)} />
                 <BreakdownRow label="Total (excl. VAT)" value={fmtEur(breakdown.total)} bold />
               </div>
             ) : (
@@ -1085,7 +1085,7 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
                       Already paid / invoiced
                     </span>
                     <button type="button"
-                      onClick={() => setCredits(rows => [...rows, { label: 'Paid — invoice ', note: '', amount: 0, dueDate: null }])}
+                      onClick={() => setCredits(rows => [...rows, { label: 'Paid, invoice ', note: '', amount: 0, dueDate: null }])}
                       className="text-xs font-semibold text-brown-rust hover:text-brown-dark underline underline-offset-2">
                       + Add
                     </button>
@@ -1098,7 +1098,7 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
                     <div className="space-y-2">
                       {credits.map((r, i) => (
                         <div key={i} className="grid grid-cols-12 gap-2 items-center">
-                          <input className="col-span-12 sm:col-span-5" placeholder="Paid — invoice 2026-00105" value={r.label}
+                          <input className="col-span-12 sm:col-span-5" placeholder="Paid, invoice 2026-00105" value={r.label}
                             onChange={e => updateRow('credit', i, { label: e.target.value })}
                             aria-label="Credit description" />
                           <input className="col-span-12 sm:col-span-4" placeholder="What it covered" value={r.note}
@@ -1129,11 +1129,11 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
 
                 <div>
                   <div className="text-xs font-bold uppercase tracking-wider text-brown-muted mb-2">
-                    Terms — {fmtEuro(remainingNet)} remaining
+                    Terms, {fmtEuro(remainingNet)} remaining
                   </div>
                   {/* Below sm the table becomes a stack of cards. A seven-column
                       editable table inside a horizontal scroller is unusable on a
-                      phone — you cannot see the term you are editing and its amount
+                      phone, you cannot see the term you are editing and its amount
                       at the same time. Same handlers, same state, different shape. */}
                   <div className="sm:hidden space-y-3">
                     {computed.instalments.map((r, i) => (
@@ -1309,11 +1309,11 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
                     : 'bg-red-500/10 border-red-500/30 text-red-700'
                 }`}>
                   {scheduleBalanced ? (
-                    <>Schedule balances — rows total {fmtEuro(total)}, matching the project value.</>
+                    <>Schedule balances, rows total {fmtEuro(total)}, matching the project value.</>
                   ) : (
                     <>
                       Rows total {fmtEuro(creditsNet + scheduledNet)} against a project value of {fmtEuro(total)}
-                      {' — '}
+                      {', '}
                       {scheduleShortfall > 0
                         ? `${fmtEuro(scheduleShortfall)} unaccounted for.`
                         : `${fmtEuro(-scheduleShortfall)} over.`}
@@ -1332,7 +1332,7 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
             <h2 className="wstep-heading">Add-ons & hosting</h2>
             <p className="wstep-tagline">
               {contractType === 'custom'
-                ? 'Custom agreement: all prices start at €0 — fill in exactly what was negotiated.'
+                ? 'Custom agreement: all prices start at €0, fill in exactly what was negotiated.'
                 : 'Hosting / domain pass-through and optional services. Adjust prices if needed.'}
             </p>
 
@@ -1461,7 +1461,7 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
               price={supabaseAddon.price}
               onToggle={() => setSupabaseAddon(s => ({ ...s, on: !s.on }))}
               onPriceChange={v => setSupabaseAddon(s => ({ ...s, price: v }))}
-              hint="Billed at Supabase's actual cost — leave 0 if on free tier."
+              hint="Billed at Supabase's actual cost, leave 0 if on free tier."
             />
             <EditableAddonRow
               name="Vercel (hosting / serverless)"
@@ -1470,7 +1470,7 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
               price={vercelAddon.price}
               onToggle={() => setVercelAddon(s => ({ ...s, on: !s.on }))}
               onPriceChange={v => setVercelAddon(s => ({ ...s, price: v }))}
-              hint="Billed at Vercel's actual cost — leave 0 if on hobby tier."
+              hint="Billed at Vercel's actual cost, leave 0 if on hobby tier."
             />
           </div>
         )}
@@ -1518,7 +1518,7 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
               disabled={blocked}
               title={
                 blockedOnDeliverables
-                  ? 'Add the deliverables — this becomes section 3 of the contract'
+                  ? 'Add the deliverables, this becomes section 3 of the contract'
                   : blockedOnSchedule
                     ? 'The payment schedule must account for the full project value'
                     : undefined
@@ -1608,7 +1608,7 @@ function ClientMatchCard({ matchedClient }: { matchedClient: KnownClient }) {
         <div className="flex flex-wrap gap-2 mb-2">
           {matchedClient.phases.map(p => (
             <span key={p.label} className={`phase-pill phase-pill-${p.status}`}>
-              {p.label} — {p.status}
+              {p.label}, {p.status}
             </span>
           ))}
         </div>
@@ -1616,7 +1616,7 @@ function ClientMatchCard({ matchedClient }: { matchedClient: KnownClient }) {
       <div className="text-xs text-brown-muted">
         {matchedClient.currentPhase > 0
           ? `Client is currently in Phase ${matchedClient.currentPhase}. Next contract will be Phase ${matchedClient.currentPhase + 1}.`
-          : 'Existing client record found — fields below have been pre-filled where available.'}
+          : 'Existing client record found, fields below have been pre-filled where available.'}
       </div>
     </div>
   )
@@ -1696,7 +1696,7 @@ export function ContractPreview({ lang, data }: { lang: 'en' | 'nl'; data: Previ
     activeAddons.push({ label: t.addonSeo, value: fmtEur(data.addons.seo.price) + ' ' + t.oneOff })
   if (data.addons.logo.on) {
     const v = data.addons.logo.note
-      ? `${fmtEur(data.addons.logo.price)} ${t.oneOff} — ${data.addons.logo.note}`
+      ? `${fmtEur(data.addons.logo.price)} ${t.oneOff}, ${data.addons.logo.note}`
       : `${fmtEur(data.addons.logo.price)} ${t.oneOff}`
     activeAddons.push({ label: t.addonLogo, value: v })
   }
@@ -1742,12 +1742,12 @@ export function ContractPreview({ lang, data }: { lang: 'en' | 'nl'; data: Previ
           <div>{PROVIDER.email} · {PROVIDER.phone}</div>
           <div className="text-xs text-brown-subtle mt-1">
             {[data.owner?.kvk && `KvK ${data.owner.kvk}`, data.owner?.vat && `BTW ${data.owner.vat}`]
-              .filter(Boolean).join(' · ') || 'No registration numbers set — add them in Settings'}
+              .filter(Boolean).join(' · ') || 'No registration numbers set, add them in Settings'}
           </div>
         </div>
         <div className="party-block">
           <div className="party-label">{t.client}</div>
-          <div className="font-bold">{c.name || `[${t.client}]`}{c.company ? ` — ${c.company}` : ''}</div>
+          <div className="font-bold">{c.name || `[${t.client}]`}{c.company ? `, ${c.company}` : ''}</div>
           {(c.address || c.postalCode || c.city) && (
             <div>
               {c.address}{c.address && (c.postalCode || c.city) ? ', ' : ''}
@@ -1791,9 +1791,9 @@ export function ContractPreview({ lang, data }: { lang: 'en' | 'nl'; data: Previ
           <div>{t.initFeeLabel}: {fmtEur(data.pricing.initFee)} ({t.initFeeNote})</div>
         )}
         <ul className="list-disc list-inside mt-2 space-y-0.5">
-          <li>{t.p1Label}: {fmtEur(data.pricing.p1)} — {t.p1Due}</li>
-          <li>{t.p2Label}: {fmtEur(data.pricing.p2)} — {t.p2Due}</li>
-          <li>{t.p3Label}: {fmtEur(data.pricing.p3)} — {t.p3Due}</li>
+          <li>{t.p1Label}: {fmtEur(data.pricing.p1)}, {t.p1Due}</li>
+          <li>{t.p2Label}: {fmtEur(data.pricing.p2)}, {t.p2Due}</li>
+          <li>{t.p3Label}: {fmtEur(data.pricing.p3)}, {t.p3Due}</li>
         </ul>
         <div className="text-xs text-brown-subtle mt-2">{t.paymentTerms}</div>
       </div>
@@ -1815,7 +1815,7 @@ export function ContractPreview({ lang, data }: { lang: 'en' | 'nl'; data: Previ
             {hostingTotal >= 0 && data.hosting.mode !== 'none' && (
               <div className="mb-2">
                 <strong>{t.hostingHeading}:</strong> {hostingLabel}
-                {hostingTotal > 0 && <> — {fmtEur(hostingTotal)}/{t.year} ({t.passthrough})</>}
+                {hostingTotal > 0 && <>, {fmtEur(hostingTotal)}/{t.year} ({t.passthrough})</>}
               </div>
             )}
             {data.hosting.mode === 'none' && (
@@ -1947,7 +1947,7 @@ const EN = {
   endDate: 'Estimated completion',
   payment: 'Pricing & Payment',
   totalLabel: 'Total project value',
-  exVat: '(excl. VAT — VAT charged at applicable Dutch / EU rate)',
+  exVat: '(excl. VAT, VAT charged at applicable Dutch / EU rate)',
   initFeeLabel: 'Project Initiation Fee',
   initFeeNote: 'fully deducted from the Phase 1 payment',
   p1Label: 'Phase 1 (30%)',
@@ -1960,10 +1960,10 @@ const EN = {
   revisions: 'Revision Scope',
   revisionsText: (o: { rate: number; tier2: boolean; tier3: boolean; custom: boolean }) => {
     const parts: string[] = []
-    parts.push('Tier 1 (cosmetic changes — colour, font, spacing, copy) are included with unlimited rounds per phase.')
-    if (o.tier2) parts.push(`Tier 2 (structural changes — layout restructure, new sections, navigation) are charged at €${o.rate}/hr.`)
+    parts.push('Tier 1 (cosmetic changes, colour, font, spacing, copy) are included with unlimited rounds per phase.')
+    if (o.tier2) parts.push(`Tier 2 (structural changes, layout restructure, new sections, navigation) are charged at €${o.rate}/hr.`)
     else parts.push('Tier 2 (structural changes) are not applicable in this phase. The Client must raise all structural change requests at Phase 1 sign-off.')
-    if (o.tier3) parts.push('Tier 3 (new features — sign-up flows, payments, user data) require a separate written addendum.')
+    if (o.tier3) parts.push('Tier 3 (new features, sign-up flows, payments, user data) require a separate written addendum.')
     if (o.custom) parts.push('As a custom agreement, additional change requests will be quoted ad-hoc against the negotiated total.')
     parts.push('Third-party costs (Supabase, Vercel, etc.) are passed through at cost.')
     return parts.join(' ')
@@ -2016,7 +2016,7 @@ const NL = {
   endDate: 'Geschatte oplevering',
   payment: 'Prijs & Betaling',
   totalLabel: 'Totale projectwaarde',
-  exVat: '(excl. BTW — BTW wordt berekend tegen het toepasselijke NL/EU-tarief)',
+  exVat: '(excl. BTW, BTW wordt berekend tegen het toepasselijke NL/EU-tarief)',
   initFeeLabel: 'Projectinitiatiekosten',
   initFeeNote: 'volledig in mindering gebracht op de Fase 1-betaling',
   p1Label: 'Fase 1 (30%)',
@@ -2029,10 +2029,10 @@ const NL = {
   revisions: 'Revisie-omvang',
   revisionsText: (o: { rate: number; tier2: boolean; tier3: boolean; custom: boolean }) => {
     const parts: string[] = []
-    parts.push('Tier 1 (cosmetische wijzigingen — kleur, lettertype, spacing, tekst) is inbegrepen met onbeperkte rondes per fase.')
-    if (o.tier2) parts.push(`Tier 2 (structurele wijzigingen — layout, nieuwe secties, navigatie) wordt berekend tegen €${o.rate}/uur.`)
+    parts.push('Tier 1 (cosmetische wijzigingen, kleur, lettertype, spacing, tekst) is inbegrepen met onbeperkte rondes per fase.')
+    if (o.tier2) parts.push(`Tier 2 (structurele wijzigingen, layout, nieuwe secties, navigatie) wordt berekend tegen €${o.rate}/uur.`)
     else parts.push('Tier 2 (structurele wijzigingen) is niet van toepassing in deze fase. De opdrachtgever dient alle structurele wijzigingsverzoeken bij goedkeuring van Fase 1 in te dienen.')
-    if (o.tier3) parts.push('Tier 3 (nieuwe functies — registratie, betalingen, gebruikersgegevens) vereist een separaat schriftelijk addendum.')
+    if (o.tier3) parts.push('Tier 3 (nieuwe functies, registratie, betalingen, gebruikersgegevens) vereist een separaat schriftelijk addendum.')
     if (o.custom) parts.push('Als aangepaste overeenkomst worden aanvullende wijzigingsverzoeken ad hoc geoffreerd binnen het overeengekomen totaalbedrag.')
     parts.push('Externe kosten (Supabase, Vercel, etc.) worden tegen kostprijs doorberekend.')
     return parts.join(' ')

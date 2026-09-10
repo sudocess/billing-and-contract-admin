@@ -176,7 +176,7 @@ export function ensureRowIds(schedule: PaymentSchedule): { schedule: PaymentSche
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
-   Rendering — one computation shared by the wizard, the contract HTML and the PDF,
+   Rendering, one computation shared by the wizard, the contract HTML and the PDF,
    so all three can never disagree about a cent.
    ──────────────────────────────────────────────────────────────────────────── */
 

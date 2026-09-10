@@ -79,7 +79,7 @@ export interface GenerateHtmlOptions {
   pdfMode?: boolean            // when true: overflow:visible so Puppeteer doesn't clip content
   clientSignedName?: string    // typed name when client has signed
   clientSignedAt?: string      // formatted date when client has signed
-  signingReference?: string    // UUID generated at signing time — embedded in audit trail
+  signingReference?: string    // UUID generated at signing time, embedded in audit trail
   signerIp?: string            // IP address captured at signing time
   signerTimestampIso?: string  // full ISO 8601 timestamp of signing (e.g. 2026-04-29T14:32:05.000Z)
 }
@@ -208,17 +208,17 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
   if (isCustom) {
     phaseNote = 'This is a Custom Agreement. The scope of work is as described above and agreed between both parties.'
   } else if (data.phase === 'phase1') {
-    phaseNote = '<strong>Phase 1 — Strategy &amp; Structure</strong> covers: project kick-off meeting, UX research and sitemap definition, content structure and wireframes, design direction proposal, and written Phase 1 sign-off by the client before Phase 2 begins.'
+    phaseNote = '<strong>Phase 1: Strategy &amp; Structure</strong> covers: project kick-off meeting, UX research and sitemap definition, content structure and wireframes, design direction proposal, and written Phase 1 sign-off by the client before Phase 2 begins.'
   } else if (data.phase === 'phase2') {
-    phaseNote = '<strong>Phase 2 — Design &amp; Prototype</strong> covers: high-fidelity design in Figma, typography and layout refinement, a fully clickable interactive prototype, and client feedback rounds within the agreed revision scope before Phase 3 begins.'
+    phaseNote = '<strong>Phase 2: Design &amp; Prototype</strong> covers: high-fidelity design in Figma, typography and layout refinement, a fully clickable interactive prototype, and client feedback rounds within the agreed revision scope before Phase 3 begins.'
   } else if (data.phase === 'phase4') {
     // Handover is not a slice of the build — it is the point where the work is
     // accepted as complete. Kept deliberately separate from payment, so a project
     // delivered in September is not treated as unfinished because its final
     // instalment falls the following spring.
-    phaseNote = '<strong>Phase 4 — Handover &amp; Acceptance</strong> covers: written confirmation that the delivered work is accepted as complete, handover of all credentials and administrative access, and a 30-day warranty period from the acceptance date during which defects in the delivered work are corrected at no charge. Acceptance marks the completion of the project. Ownership of custom deliverables, source code and any domain registered on the client&rsquo;s behalf transfers on receipt of final payment, which may fall after the acceptance date. Work requested after acceptance, including ongoing support and maintenance, falls outside this agreement and requires a separate contract.'
+    phaseNote = '<strong>Phase 4: Handover &amp; Acceptance</strong> covers: written confirmation that the delivered work is accepted as complete, handover of all credentials and administrative access, and a 30-day warranty period from the acceptance date during which defects in the delivered work are corrected at no charge. Acceptance marks the completion of the project. Ownership of custom deliverables, source code and any domain registered on the client&rsquo;s behalf transfers on receipt of final payment, which may fall after the acceptance date. Work requested after acceptance, including ongoing support and maintenance, falls outside this agreement and requires a separate contract.'
   } else if (data.phase === 'phase3') {
-    phaseNote = '<strong>Phase 3 — Build &amp; Launch</strong> covers: full front-end and back-end development, integration of all dynamic applications, cross-browser and device testing, deployment to the live hosting environment, and final handover of all credentials and source code.'
+    phaseNote = '<strong>Phase 3: Build &amp; Launch</strong> covers: full front-end and back-end development, integration of all dynamic applications, cross-browser and device testing, deployment to the live hosting environment, and final handover of all credentials and source code.'
   }
 
   // ── Section 4: payment rows ──────────────────────────────────────────
@@ -248,7 +248,7 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
         // "€298.63 incl. VAT" beside a note saying amounts exclude VAT, on the same
         // row, for a business with no BTW registration to charge it under.
         const gross = c.vatRate > 0 ? `${fmtEuro(r.gross)} incl. VAT` : ''
-        return `<tr><td>${esc(r.label)}</td><td>${esc(detail)}${detail && gross ? ' — ' : ''}${gross}</td><td class="amount">${fmt(r.amount)}</td></tr>`
+        return `<tr><td>${esc(r.label)}</td><td>${esc(detail)}${detail && gross ? ', ' : ''}${gross}</td><td class="amount">${fmt(r.amount)}</td></tr>`
       })
       .join('')
 
@@ -261,7 +261,7 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
     paymentNote =
       `Amounts shown are exclusive of VAT.${vatLine}` +
       (c.creditsNet > 0
-        ? ` ${fmtEuro(c.creditsNet)} has already been invoiced and is listed above for completeness — it is not payable again.`
+        ? ` ${fmtEuro(c.creditsNet)} has already been invoiced and is listed above for completeness, it is not payable again.`
         : '')
   } else if (isCustom) {
     paymentRows = `
@@ -271,11 +271,11 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
     paymentNote = 'No project initiation fee applies to this Custom Agreement.'
   } else if (data.contractType === 'phase') {
     if (data.phase === 'phase1') {
-      paymentRows = `<tr><td>Phase 1 — 30%</td><td>Due before Phase 1 work begins</td><td class="amount">${fmt(data.pricing.p1 - data.pricing.initFee)}</td></tr>`
+      paymentRows = `<tr><td>Phase 1: 30%</td><td>Due before Phase 1 work begins</td><td class="amount">${fmt(data.pricing.p1 - data.pricing.initFee)}</td></tr>`
     } else if (data.phase === 'phase2') {
-      paymentRows = `<tr><td>Phase 2 — 40%</td><td>Due after written client approval of Phase 2</td><td class="amount">${fmt(data.pricing.p2)}</td></tr>`
+      paymentRows = `<tr><td>Phase 2: 40%</td><td>Due after written client approval of Phase 2</td><td class="amount">${fmt(data.pricing.p2)}</td></tr>`
     } else {
-      paymentRows = `<tr><td>Phase 3 — 30%</td><td>Due before final delivery / publishing</td><td class="amount">${fmt(data.pricing.p3)}</td></tr>`
+      paymentRows = `<tr><td>Phase 3: 30%</td><td>Due before final delivery / publishing</td><td class="amount">${fmt(data.pricing.p3)}</td></tr>`
     }
     // The Phase 1 row prints p1 minus the initiation fee, so without this sentence the
     // three rows visibly fall short of the stated total with no explanation.
@@ -285,9 +285,9 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
   } else {
     const p1Net = data.pricing.p1 - data.pricing.initFee
     paymentRows = `
-      <tr><td>Phase 1 — 30%</td><td>Due before Phase 1 work begins</td><td class="amount">${fmt(p1Net)}</td></tr>
-      <tr><td>Phase 2 — 40%</td><td>Due after written client approval of Phase 2</td><td class="amount">${fmt(data.pricing.p2)}</td></tr>
-      <tr><td>Phase 3 — 30%</td><td>Due before final delivery / publishing</td><td class="amount">${fmt(data.pricing.p3)}</td></tr>`
+      <tr><td>Phase 1: 30%</td><td>Due before Phase 1 work begins</td><td class="amount">${fmt(p1Net)}</td></tr>
+      <tr><td>Phase 2: 40%</td><td>Due after written client approval of Phase 2</td><td class="amount">${fmt(data.pricing.p2)}</td></tr>
+      <tr><td>Phase 3: 30%</td><td>Due before final delivery / publishing</td><td class="amount">${fmt(data.pricing.p3)}</td></tr>`
     // The Phase 1 row prints p1 minus the initiation fee, so without this sentence the
     // three rows visibly fall short of the stated total with no explanation.
     paymentNote = data.pricing.initFee > 0
@@ -338,7 +338,7 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
   } else if (data.hosting.mode === 'hosting') {
     addonRows.push(`<tr><td class="addon-name">Managed hosting via Hostinger<div class="addon-note">Client provides own domain. Managed hosting passed through at cost; renews annually unless cancelled.</div></td><td class="addon-price">${fmt(data.hosting.hostingPrice)}/yr</td></tr>`)
   } else {
-    addonRows.push(`<tr><td class="addon-name">Domain &amp; hosting${data.hosting.clientHostingNote ? ` — ${data.hosting.clientHostingNote}` : ''}<div class="addon-note">Client manages own domain and hosting. No pass-through costs.<br/><br/><strong>Client responsibility clause:</strong> The client has chosen to use their own hosting and domain services. The client agrees to: (1) provide Engaging UX Design access to their hosting dashboard via info@engaginguxdesign.com; (2) accept full responsibility for all risks associated with their chosen hosting environment; (3) acknowledge that Engaging UX Design has no control over, and accepts no liability for, any technical disturbances, downtime, data loss, or security incidents related to the client's hosting provider.</div></td><td class="addon-price">€0</td></tr>`)
+    addonRows.push(`<tr><td class="addon-name">Domain &amp; hosting${data.hosting.clientHostingNote ? `, ${data.hosting.clientHostingNote}` : ''}<div class="addon-note">Client manages own domain and hosting. No pass-through costs.<br/><br/><strong>Client responsibility clause:</strong> The client has chosen to use their own hosting and domain services. The client agrees to: (1) provide Engaging UX Design access to their hosting dashboard via info@engaginguxdesign.com; (2) accept full responsibility for all risks associated with their chosen hosting environment; (3) acknowledge that Engaging UX Design has no control over, and accepts no liability for, any technical disturbances, downtime, data loss, or security incidents related to the client's hosting provider.</div></td><td class="addon-price">€0</td></tr>`)
   }
   if (data.addons.seo.on)
     addonRows.push(`<tr><td class="addon-name">Foundational SEO setup<div class="addon-note">One-off setup of meta tags, structured data, sitemap, robots, and analytics baseline.</div></td><td class="addon-price">${fmt(data.addons.seo.price)}</td></tr>`)
@@ -349,12 +349,12 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
   if (data.addons.support.on) {
     const months = data.addons.support.months || 0
     const total = data.addons.support.price * months
-    addonRows.push(`<tr><td class="addon-name">Priority support<div class="addon-note">Fixed monthly — cancel with 1 calendar month written notice.</div></td><td class="addon-price">${fmt(data.addons.support.price)}/mo × ${months} ${months === 1 ? 'month' : 'months'} = ${fmt(total)}</td></tr>`)
+    addonRows.push(`<tr><td class="addon-name">Priority support<div class="addon-note">Fixed monthly, cancel with 1 calendar month written notice.</div></td><td class="addon-price">${fmt(data.addons.support.price)}/mo × ${months} ${months === 1 ? 'month' : 'months'} = ${fmt(total)}</td></tr>`)
   }
   if (data.addons.supabase.on)
-    addonRows.push(`<tr><td class="addon-name">Supabase<div class="addon-note">Database / auth — pass-through, no mark-up.</div></td><td class="addon-price pass">At cost</td></tr>`)
+    addonRows.push(`<tr><td class="addon-name">Supabase<div class="addon-note">Database / auth, pass-through, no mark-up.</div></td><td class="addon-price pass">At cost</td></tr>`)
   if (data.addons.vercel.on)
-    addonRows.push(`<tr><td class="addon-name">Vercel<div class="addon-note">App hosting / serverless — pass-through, no mark-up.</div></td><td class="addon-price pass">At cost</td></tr>`)
+    addonRows.push(`<tr><td class="addon-name">Vercel<div class="addon-note">App hosting / serverless, pass-through, no mark-up.</div></td><td class="addon-price pass">At cost</td></tr>`)
 
   const addonsNote = data.addons.support.on
     ? 'Priority support is a fixed monthly commitment. The client may cancel with written notice at least <strong>one full calendar month in advance</strong>. A pro-rated refund applies for any unused pre-paid portion. Data storage and app hosting costs are billed at cost and invoiced separately.'
@@ -414,8 +414,13 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
   /* ── Which kind of agreement is this? ──────────────────────────────────────
      Three documents share one shell. Only sections 2, 4 and 5 differ: what the
      agreement is at a glance, how it is paid for, and what it includes. Everything
-     else — parties, infrastructure, obligations, IP, the legal tail — is common,
+     else, parties, infrastructure, obligations, IP, the legal tail, is common,
      and stays common so a clause fixed once is fixed everywhere. */
+  // Contracts saved before the labels used a colon still carry the old dash. The label
+  // is system-generated rather than the client's own words, so it is normalised on
+  // render instead of rewriting what is stored on a signed record.
+  const phaseLabelText = (data.phaseLabel || '').replace(/^(Phase \d)\s+—\s+/, '$1: ')
+
   const care = data.carePlan ?? null
   // Legacy extensions were numbered inside their parent, so the parent is still
   // recoverable from those codes; newer ones carry it explicitly.
@@ -474,7 +479,7 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
         : `
         <div class="detail-cell">
           <div class="detail-cell-label">Phase</div>
-          <div class="detail-cell-value">${esc(data.phaseLabel)}</div>
+          <div class="detail-cell-value">${esc(phaseLabelText)}</div>
         </div>
         <div class="detail-cell">
           <div class="detail-cell-label">Estimated completion</div>
@@ -599,7 +604,7 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>${docTitle} — Engaging UX Design — ${esc(data.contractId)}</title>
+<title>${docTitle}, Engaging UX Design, ${esc(data.contractId)}</title>
 <link href="https://fonts.googleapis.com/css2?family=Gabarito:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -792,7 +797,7 @@ ${includePrintScript ? '<button class="toolbar" onclick="window.print()">Save as
       ? esc(`${data.client.company || data.client.name} · monthly support`)
       : docKind === 'extension'
         ? esc(`Scope extension of ${extendsCode || 'the original agreement'}`)
-        : `${esc(data.phaseLabel)} &middot; ${esc(typeLabel)}`}</div>
+        : `${esc(phaseLabelText)} &middot; ${esc(typeLabel)}`}</div>
   </div>
 
   <div class="page-body">
@@ -849,7 +854,7 @@ ${includePrintScript ? '<button class="toolbar" onclick="window.print()">Save as
 <!-- ═══════════ PAGE 2 ═══════════ -->
 <div class="page">
   <div class="page-header-cont">
-    <div class="phc-brand">Engaging UX Design — ${docTitle}</div>
+    <div class="phc-brand">Engaging UX Design, ${docTitle}</div>
     <div class="phc-id">${esc(data.contractId)}</div>
   </div>
 
@@ -877,19 +882,19 @@ ${section5}
             <td class="addon-price pass">At cost</td>
           </tr>
           <tr>
-            <td class="addon-name">App hosting &amp; serverless functions — Vercel<div class="addon-note">Dynamic applications deployed via Vercel, Inc. The client acknowledges and accepts Vercel's Terms of Service and Privacy Policy.</div></td>
+            <td class="addon-name">App hosting &amp; serverless functions, Vercel<div class="addon-note">Dynamic applications deployed via Vercel, Inc. The client acknowledges and accepts Vercel's Terms of Service and Privacy Policy.</div></td>
             <td class="addon-price pass">At cost</td>
           </tr>
           <tr>
-            <td class="addon-name">Data storage &amp; database — Supabase<div class="addon-note">Application data stored via Supabase, Inc. The client acknowledges and accepts Supabase's Terms of Service, Privacy Policy, and Data Processing Agreement.</div></td>
+            <td class="addon-name">Data storage &amp; database, Supabase<div class="addon-note">Application data stored via Supabase, Inc. The client acknowledges and accepts Supabase's Terms of Service, Privacy Policy, and Data Processing Agreement.</div></td>
             <td class="addon-price pass">At cost</td>
           </tr>
           <tr>
-            <td class="addon-name">Transactional email — Resend<div class="addon-note">Automated notifications sent via Resend, Inc. The client acknowledges and accepts Resend's Terms of Service and Privacy Policy.</div></td>
+            <td class="addon-name">Transactional email, Resend<div class="addon-note">Automated notifications sent via Resend, Inc. The client acknowledges and accepts Resend's Terms of Service and Privacy Policy.</div></td>
             <td class="addon-price pass">At cost</td>
           </tr>
           <tr>
-            <td class="addon-name">Source code &amp; version control — GitHub<div class="addon-note">All code maintained in a private GitHub repository. Full access transferred to client upon final payment.</div></td>
+            <td class="addon-name">Source code &amp; version control, GitHub<div class="addon-note">All code maintained in a private GitHub repository. Full access transferred to client upon final payment.</div></td>
             <td class="addon-price">Included</td>
           </tr>
         </tbody>
@@ -909,7 +914,7 @@ ${section5}
 <!-- ═══════════ PAGE 3 ═══════════ -->
 <div class="page">
   <div class="page-header-cont">
-    <div class="phc-brand">Engaging UX Design — ${docTitle}</div>
+    <div class="phc-brand">Engaging UX Design, ${docTitle}</div>
     <div class="phc-id">${esc(data.contractId)}</div>
   </div>
 
@@ -951,7 +956,7 @@ ${section5}
 
 <div class="page">
   <div class="page-header-cont">
-    <div class="phc-brand">Engaging UX Design — ${docTitle}</div>
+    <div class="phc-brand">Engaging UX Design, ${docTitle}</div>
     <div class="phc-id">${esc(data.contractId)}</div>
   </div>
 
@@ -983,7 +988,7 @@ ${section5}
 
 <div class="page">
   <div class="page-header-cont">
-    <div class="phc-brand">Engaging UX Design — ${docTitle}</div>
+    <div class="phc-brand">Engaging UX Design, ${docTitle}</div>
     <div class="phc-id">${esc(data.contractId)}</div>
   </div>
 
@@ -1001,7 +1006,7 @@ ${section5}
           <div class="sig-party">Engaging UX Design</div>
           <div class="sig-line signed"><img class="sig-img" src="${sigBase64}" alt="Cess Garcia - de Laat signature" /></div>
           <div class="sig-stamp">✓ Signed electronically</div>
-          <div class="sig-line signed"><span class="sig-typed">Cess Garcia - de Laat — Founder</span></div>
+          <div class="sig-line signed"><span class="sig-typed">Cess Garcia - de Laat, Founder</span></div>
           <div class="sig-field-label">Name &amp; title</div>
           <div class="sig-line signed"><span class="sig-typed">${esc(today)}</span></div>
           <div class="sig-field-label">Date</div>

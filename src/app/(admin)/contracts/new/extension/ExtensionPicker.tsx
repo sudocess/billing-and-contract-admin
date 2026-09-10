@@ -92,7 +92,7 @@ export default function ExtensionPicker() {
   return (
     <div className="max-w-3xl">
       <p className="text-sm text-brown-subtle mb-4">
-        Which agreement does this extend? The original stays in force — the extension is
+        Which agreement does this extend? The original stays in force, the extension is
         priced and signed separately.
       </p>
 
@@ -176,8 +176,8 @@ export default function ExtensionPicker() {
                       ) : (
                         <span className="text-[11px] text-brown-subtle">
                           {r.status === 'SUPERSEDED'
-                            ? 'Replaced by a later version — extend that instead'
-                            : 'Cancelled — nothing to extend'}
+                            ? 'Replaced by a later version, extend that instead'
+                            : 'Cancelled, nothing to extend'}
                         </span>
                       )}
                     </div>
