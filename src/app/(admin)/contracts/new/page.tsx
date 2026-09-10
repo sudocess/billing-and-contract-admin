@@ -7,7 +7,7 @@ export const metadata = { title: 'New contract, Engaging UX Design' }
 /**
  * What kind of contract is this?
  *
- * A pre-step, not step 1 — so it deliberately carries none of the wizard's chrome.
+ * A pre-step, not step 1, so it deliberately carries none of the wizard's chrome.
  * Every existing "New contract" link already points here, so introducing the choice
  * costs no changes anywhere else; the project wizard simply moved down a level.
  */
@@ -39,7 +39,7 @@ const KINDS = [
       'Use this when a client asks for something outside the original scope, like a new section '
       + 'or a feature nobody planned for. It is priced and signed on its own, and the agreement '
       + 'it extends carries on unchanged.',
-    meta: 'Starts with the contract',
+    meta: 'Starts with a signed contract',
   },
 ] as const
 

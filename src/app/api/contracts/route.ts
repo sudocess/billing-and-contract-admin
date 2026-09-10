@@ -39,6 +39,14 @@ interface SaveContractBody {
     p3: number
     tier2Rate: number
   }
+  /**
+   * On a scope extension, the agreement it adds to.
+   *
+   * Sent by the extension wizard and by nothing else. Without it an extension saves
+   * as an orphan: the document still names what it extends, but the app cannot show
+   * "already extended twice" on the parent, because nothing points back.
+   */
+  parentContractId?: string | null
   // Full preview snapshot (hosting, addons, etc.)
   data: unknown
   // Variable-length payment schedule; null/absent means the legacy p1/p2/p3 split.
@@ -117,6 +125,7 @@ export async function POST(req: Request) {
         p2: body.pricing.p2 || 0,
         p3: body.pricing.p3 || 0,
         tier2Rate: body.pricing.tier2Rate || 0,
+        ...(body.parentContractId ? { parentContractId: body.parentContractId } : {}),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         data: body.data as any,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -150,6 +159,7 @@ export async function POST(req: Request) {
         p2: body.pricing.p2 || 0,
         p3: body.pricing.p3 || 0,
         tier2Rate: body.pricing.tier2Rate || 0,
+        ...(body.parentContractId ? { parentContractId: body.parentContractId } : {}),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         data: body.data as any,
         // Cleared rather than skipped: switching a contract back to the phase split has
@@ -172,7 +182,7 @@ export async function POST(req: Request) {
         await recordEvent(
           saved.id,
           'edited',
-          before.status === 'SIGNED' ? `Edited after signing — ${what}` : what,
+          before.status === 'SIGNED' ? `Edited after signing, ${what}` : what,
           session.email,
         )
       }

@@ -36,6 +36,14 @@ export type PreviewData = {
    */
   extendsCode?: string | null
   /**
+   * On a scope extension, the work this agreement explicitly does not cover.
+   *
+   * Held separately from the deliverables rather than left to a paragraph inside them,
+   * because the whole reason an extension exists is that the last agreement's scope was
+   * read wider than it was written. Printed as its own block under the scope.
+   */
+  exclusions?: string | null
+  /**
    * Present only on care-plan agreements. A care plan has no milestones and no fixed
    * total, so sections 2, 4 and 5 are rendered from this instead of from the phase
    * split — which would otherwise print three €0.00 milestone rows under a monthly fee.
@@ -221,6 +229,29 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
     phaseNote = '<strong>Phase 3: Build &amp; Launch</strong> covers: full front-end and back-end development, integration of all dynamic applications, cross-browser and device testing, deployment to the live hosting environment, and final handover of all credentials and source code.'
   }
 
+  /* ── Which kind of agreement is this? ──────────────────────────────────────
+     Three documents share one shell. Only sections 2, 4 and 5 differ: what the
+     agreement is at a glance, how it is paid for, and what it includes. Everything
+     else, parties, infrastructure, obligations, IP, the legal tail, is common,
+     and stays common so a clause fixed once is fixed everywhere. */
+  // Contracts saved before the labels used a colon still carry the old dash. The label
+  // is system-generated rather than the client's own words, so it is normalised on
+  // render instead of rewriting what is stored on a signed record.
+  const phaseLabelText = (data.phaseLabel || '').replace(/^(Phase \d)\s+—\s+/, '$1: ')
+
+  const care = data.carePlan ?? null
+  // Legacy extensions were numbered inside their parent, so the parent is still
+  // recoverable from those codes; newer ones carry it explicitly.
+  const legacyExt = /^(.*)-EXT(\d+)$/.exec(data.contractId || '')
+  const isExtension =
+    data.contractType === 'extension'
+    || !!data.extendsCode
+    || !!legacyExt
+    || /-E\d+-\d{4}$/.test(data.contractId || '')
+  const extendsCode = data.extendsCode || legacyExt?.[1] || ''
+  const docKind: 'care' | 'extension' | 'project' =
+    care ? 'care' : isExtension ? 'extension' : 'project'
+
   // ── Section 4: payment rows ──────────────────────────────────────────
   let paymentRows = ''
   let paymentNote = ''
@@ -304,12 +335,15 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
     // an hourly rate in this section invited exactly the open-ended argument the
     // scope extension exists to prevent.
     const TWEAK_ROUNDS = 5
+    // "Per phase" is the mother contract's unit. An extension has no phases, so the
+    // same allowance is expressed against the extension itself.
+    const roundScope = isExtension ? 'on the work in this extension' : 'per phase'
     revisionTiers = `
       <div class="tier-row">
         <div class="tier-index active">1</div>
         <div class="tier-content">
           <div class="tier-title">Tweaks and minor adjustments</div>
-          <div class="tier-desc">Cosmetic changes to work already delivered: colour, font, spacing, copy, image swaps, and similar adjustments that do not change layout, structure or function. Included, up to <strong>${TWEAK_ROUNDS} rounds per phase</strong>. A round is one consolidated set of requests. Further rounds are quoted separately.</div>
+          <div class="tier-desc">Cosmetic changes to work already delivered: colour, font, spacing, copy, image swaps, and similar adjustments that do not change layout, structure or function. Included, up to <strong>${TWEAK_ROUNDS} rounds ${roundScope}</strong>. A round is one consolidated set of requests. Further rounds are quoted separately.</div>
         </div>
         <span class="tier-badge badge-inc">${TWEAK_ROUNDS} rounds included</span>
       </div>
@@ -356,9 +390,40 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
   if (data.addons.vercel.on)
     addonRows.push(`<tr><td class="addon-name">Vercel<div class="addon-note">App hosting / serverless, pass-through, no mark-up.</div></td><td class="addon-price pass">At cost</td></tr>`)
 
+  /* An extension adds work, it does not re-let the infrastructure.
+     Reprinting the hosting table on a second document gives a client two signed
+     statements about the same arrangement, and the moment they differ by a word the
+     later one looks like it changed the earlier one. So an extension points at the
+     agreement that actually governs it. */
   const addonsNote = data.addons.support.on
     ? 'Priority support is a fixed monthly commitment. The client may cancel with written notice at least <strong>one full calendar month in advance</strong>. A pro-rated refund applies for any unused pre-paid portion. Data storage and app hosting costs are billed at cost and invoiced separately.'
     : 'Data storage and app hosting costs (Supabase, Vercel, etc.) are billed at cost and invoiced separately.'
+
+  /* A child agreement must not read as though it replaced its parent.
+     "Supersedes all prior understandings" is exactly the sentence a client would quote
+     to argue that signing a care plan voided the project contract, while section 3 of
+     the same document says that contract remains in force. So the parent is carved out
+     by name, and its subject matter is stated to be a different one. */
+  const carveOut =
+    docKind === 'extension'
+      ? esc(`, with the exception of ${extendsCode || 'the agreement this document extends'}, which remains in full force and is not superseded, varied or reduced by this agreement`)
+      : docKind === 'care'
+        ? esc(
+            (care?.complements ?? []).length
+              ? `, with the exception of ${(care?.complements ?? []).join(', ')}, which ${(care?.complements ?? []).length === 1 ? 'remains' : 'remain'} in full force and ${(care?.complements ?? []).length === 1 ? 'is' : 'are'} not superseded, varied or reduced by this agreement`
+              : ', with the exception of any project agreement already in place between the parties, which remains in full force and is not superseded, varied or reduced by this agreement',
+          )
+        : ''
+
+  const section6Body =
+    docKind === 'extension'
+      ? `<p class="clause">Hosting, the domain name, third-party services and any add-ons continue to be governed by ${esc(extendsCode || 'the original agreement')} on the terms already agreed there. This extension does not change them and adds no recurring charge of its own.</p>`
+      : `<table class="addons-table">
+        <tbody>
+          ${addonRows.join('\n          ')}
+        </tbody>
+      </table>
+      <div class="note">${addonsNote}</div>`
 
   // ── Section 7: Google account ────────────────────────────────────────
 
@@ -410,29 +475,6 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
         <strong>If an invoice is overdue.</strong> Delivery or release of outstanding work is paused until payment is received. The website, the business email, the domain name and access to the administration application are not suspended, withheld or allowed to lapse for non-payment. On cancellation, a full export of website files, database and client data is provided at no charge, and no service is switched off before the transfer is complete.
       </div>`
   }
-
-  /* ── Which kind of agreement is this? ──────────────────────────────────────
-     Three documents share one shell. Only sections 2, 4 and 5 differ: what the
-     agreement is at a glance, how it is paid for, and what it includes. Everything
-     else, parties, infrastructure, obligations, IP, the legal tail, is common,
-     and stays common so a clause fixed once is fixed everywhere. */
-  // Contracts saved before the labels used a colon still carry the old dash. The label
-  // is system-generated rather than the client's own words, so it is normalised on
-  // render instead of rewriting what is stored on a signed record.
-  const phaseLabelText = (data.phaseLabel || '').replace(/^(Phase \d)\s+—\s+/, '$1: ')
-
-  const care = data.carePlan ?? null
-  // Legacy extensions were numbered inside their parent, so the parent is still
-  // recoverable from those codes; newer ones carry it explicitly.
-  const legacyExt = /^(.*)-EXT(\d+)$/.exec(data.contractId || '')
-  const isExtension =
-    data.contractType === 'extension'
-    || !!data.extendsCode
-    || !!legacyExt
-    || /-E\d+-\d{4}$/.test(data.contractId || '')
-  const extendsCode = data.extendsCode || legacyExt?.[1] || ''
-  const docKind: 'care' | 'extension' | 'project' =
-    care ? 'care' : isExtension ? 'extension' : 'project'
 
   // A care plan is always a binding agreement. Where no package has been marked as
   // chosen, the recommended one is what it binds, rather than the document hedging.
@@ -519,6 +561,16 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
       <div class="note">
         Invoices are payable within 30 days of invoice date. Late payments are subject to contractually agreed interest of 1% per month, in addition to any statutory commercial interest due under art. 6:119a BW and a &euro;25 administrative fee per reminder issued after the first. Where an invoice is overdue, delivery or release of outstanding deliverables is paused until payment is received.${paymentNote ? ' ' + paymentNote : ''}
       </div>`
+
+  /* What this extension does not cover.
+     Printed as its own block rather than folded into the scope, because an extension
+     exists precisely because a scope was read wider than it was written, and the
+     boundary is the part worth stating twice. */
+  const exclusionsBlock = (data.exclusions || '').trim()
+    ? `<div class="scope-heading" style="margin-top:12px;">Not included in this extension</div>
+       ${renderDeliverables(data.exclusions || '')}
+       <div class="note">Anything not listed in this section is outside the scope of this extension. Further work is quoted and agreed as its own scope extension before it starts.</div>`
+    : ''
 
   const scopeNote =
     docKind === 'extension'
@@ -786,7 +838,7 @@ ${includePrintScript ? '<button class="toolbar" onclick="window.print()">Save as
       <div class="brand-tagline">UX Design &amp; Web Development · Eindhoven, NL</div>
     </div>
     <div class="header-meta">
-      <div class="contract-type-label">Service Agreement</div>
+      <div class="contract-type-label">${esc(docTitle)}</div>
       <div class="contract-id">ID: ${esc(data.contractId)}<br>Issued: ${esc(today)}</div>
     </div>
   </header>
@@ -835,6 +887,7 @@ ${includePrintScript ? '<button class="toolbar" onclick="window.print()">Save as
     <div class="section">
       <div class="section-label">${scopeLabel}</div>
       ${renderDeliverables(data.deliverables)}
+      ${exclusionsBlock}
       ${tierTable}
       ${docKind === 'project' && phaseNote ? `<div class="note" style="margin-top:10px;">${phaseNote}</div>` : ''}
       ${scopeNote}
@@ -864,12 +917,7 @@ ${section5}
 
     <div class="section">
       <div class="section-label">6. Hosting &amp; Add-ons</div>
-      <table class="addons-table">
-        <tbody>
-          ${addonRows.join('\n          ')}
-        </tbody>
-      </table>
-      <div class="note">${addonsNote}</div>
+      ${section6Body}
     </div>
 
     <div class="section">
@@ -928,6 +976,9 @@ ${section5}
       <p class="clause"><strong>If the project is inactive for 90 days.</strong> The project is archived. Work does not resume unless the client requests it in writing and pays a further project initiation fee at the rate then applicable. Amounts already invoiced remain due. Archiving does not end this agreement; either party may still terminate it under section 12.</p>
       <div class="note">Delays caused by late asset delivery or by an unanswered request for feedback are the responsibility of the client and do not constitute a breach by Engaging UX Design.</div>
     </div>
+
+    <div class="section">
+      <div class="section-label">9. Intellectual Property</div>
       <p class="clause">Upon receipt of full payment, the client receives full ownership of all custom deliverables. Until full payment is received, all deliverables remain the property of Engaging UX Design. Engaging UX Design retains the right to display completed work in its portfolio and marketing materials.</p>
     </div>
 
@@ -975,7 +1026,7 @@ ${section5}
 
     <div class="section">
       <div class="section-label">15. Entire Agreement</div>
-      <p class="clause">This agreement, together with the Engaging UX Design Service Terms &amp; Project Conditions as published on the date of signing, constitutes the entire agreement between the parties in respect of its subject matter, and supersedes all prior proposals, quotations, correspondence, discussions and understandings, whether written or oral. Where this agreement and those Service Terms conflict, this agreement prevails.</p>
+      <p class="clause">This agreement, together with the Engaging UX Design Service Terms &amp; Project Conditions as published on the date of signing, constitutes the entire agreement between the parties in respect of its subject matter, and supersedes all prior proposals, quotations, correspondence, discussions and understandings, whether written or oral${carveOut}. Where this agreement and those Service Terms conflict, this agreement prevails.</p>
       <p class="clause">Amendments are valid only when agreed in writing by both parties. A scope extension or superseding agreement issued through the Engaging UX Design contract system and accepted by the client in the same manner as this agreement satisfies that requirement. The applicability of any general terms and conditions of the client is expressly rejected, whether or not referred to in the client&rsquo;s own documents.</p>
     </div>
 

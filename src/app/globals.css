@@ -276,6 +276,11 @@ label {
 .toast-enter {
   animation: slideUp 0.25s ease forwards;
 }
+/* The movement is the whole point of slideUp, so for anyone who has asked not to be
+   moved there is nothing left worth keeping: the element simply appears. */
+@media (prefers-reduced-motion: reduce) {
+  .toast-enter, .modal-box { animation: none; }
+}
 
 /* ── Modal ── */
 .modal-overlay {
