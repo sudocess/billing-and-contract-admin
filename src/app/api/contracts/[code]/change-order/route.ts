@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { readSession } from '@/lib/auth'
+import { newChildContractCode } from '@/lib/contracts'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,11 +25,18 @@ export async function POST(
     )
   }
 
-  // "Scope extension" is the client-facing name for this: work beyond what the
-  // original agreement covered, priced separately. Distinct from a *revision*, which
-  // edits an unsigned contract in place and takes the next version number instead.
-  const extNumber = (parent.changeOrders.length ?? 0) + 1
-  const newCode = `${parent.contractCode}-EXT${extNumber}`
+  // A scope extension is its own agreement with its own identity and its own version
+  // history, connected to the client rather than nested inside the parent's code.
+  // Nesting it (…-0001-EXT1) meant a revision of an extension had nowhere to go.
+  const client = parent.clientId
+    ? await prisma.client.findUnique({ where: { id: parent.clientId }, select: { clientCode: true } })
+    : null
+  const clientCode = client?.clientCode
+    ?? /^\d{4}-([A-Za-z0-9]+)-/.exec(parent.contractCode)?.[1]
+    ?? '0000000'
+  const existing = await prisma.contract.findMany({ select: { contractCode: true } })
+  const newCode = newChildContractCode(clientCode, 'extension', existing.map(c => c.contractCode))
+  const extNumber = /-E(\d+)-/.exec(newCode)?.[1] ?? '1'
 
   const created = await prisma.contract.create({
     data: {

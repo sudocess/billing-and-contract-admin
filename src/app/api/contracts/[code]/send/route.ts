@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { readSession } from '@/lib/auth'
+import { recordEvent } from '@/lib/contractEvents'
 import { sendContractEmail, buildContractSummaryHTML } from '@/lib/email'
 
 export const dynamic = 'force-dynamic'
@@ -78,6 +79,8 @@ export async function POST(
         status: contract.status === 'DRAFT' ? 'PENDING' : contract.status,
       },
     })
+
+    await recordEvent(contract.id, 'sent', `Contract emailed to ${to}`, session.email)
 
     return NextResponse.json({
       ok: true,

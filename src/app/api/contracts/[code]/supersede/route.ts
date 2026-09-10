@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { readSession } from '@/lib/auth'
 import { nextContractVersion, parseContractCode } from '@/lib/contracts'
+import { recordEvent } from '@/lib/contractEvents'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,9 +35,11 @@ export async function POST(
   // Every code already in the family, so a revision can never reuse one left behind
   // by an earlier attempt.
   const parsed = parseContractCode(old.contractCode)
+  // Siblings are the other versions of THIS agreement — same family, so a care plan's
+  // revision never collides with the mother contract's.
   const siblings = parsed
     ? await prisma.contract.findMany({
-        where: { contractCode: { startsWith: `${parsed.year}-${parsed.client}-` } },
+        where: { contractCode: { startsWith: `${parsed.family}-` } },
         select: { contractCode: true },
       })
     : []
@@ -85,6 +88,13 @@ export async function POST(
     })
     return { old: updated, new: created }
   })
+
+  await recordEvent(result.new.id, 'created',
+    `Revision of ${result.old.contractCode}${result.old.signedAt ? ' — the version it revises is signed and stays in force until this one is signed' : ''}`,
+    session.email)
+  await recordEvent(result.old.id, 'edited',
+    `Revision ${result.new.contractCode} drafted. This version remains in force until that one is signed.`,
+    session.email)
 
   return NextResponse.json({
     ok: true,

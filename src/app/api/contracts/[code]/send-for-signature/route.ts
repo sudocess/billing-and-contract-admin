@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { readSession } from '@/lib/auth'
+import { recordEvent } from '@/lib/contractEvents'
 import { buildContractSummaryHTML, sendContractEmail } from '@/lib/email'
 
 export const dynamic = 'force-dynamic'
@@ -71,6 +72,8 @@ export async function POST(
     contractSummaryHtml: summaryHtml,
     viewUrl: signingUrl,
   })
+
+  await recordEvent(contract.id, 'signature_requested', `Signing link emailed to ${clientEmail}`, session.email)
 
   return NextResponse.json({ ok: true, sentTo: clientEmail })
 }

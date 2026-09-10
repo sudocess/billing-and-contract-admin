@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { readSession } from '@/lib/auth'
 import { parseSchedule } from '@/lib/installments'
+import { recordEvent, describeChanges } from '@/lib/contractEvents'
 
 export const dynamic = 'force-dynamic'
 
@@ -78,6 +79,9 @@ export async function POST(req: Request) {
     })
     const clientId = matchedClient?.id ?? null
 
+    // Captured before the upsert so an edit can say what actually changed.
+    const before = await prisma.contract.findUnique({ where: { contractCode: body.contractCode } })
+
     const saved = await prisma.contract.upsert({
       where: { contractCode: body.contractCode },
       create: {
@@ -151,6 +155,25 @@ export async function POST(req: Request) {
         installments: schedule ? (schedule as any) : Prisma.DbNull,
       },
     })
+    if (!before) {
+      await recordEvent(saved.id, 'created', `${body.contractType} contract created`, session.email)
+    } else {
+      const what = describeChanges(
+        before as unknown as Record<string, unknown>,
+        saved as unknown as Record<string, unknown>,
+      )
+      // Silent saves that changed nothing are not worth a row; they would bury the
+      // ones that did.
+      if (what) {
+        await recordEvent(
+          saved.id,
+          'edited',
+          before.status === 'SIGNED' ? `Edited after signing — ${what}` : what,
+          session.email,
+        )
+      }
+    }
+
     return NextResponse.json({ ok: true, id: saved.id, contractCode: saved.contractCode })
   } catch (err) {
     console.error('[contracts] save failed', err)

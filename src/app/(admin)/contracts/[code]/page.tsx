@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { openContractPrintWindow, type PreviewData } from '@/components/ContractWizard'
 import { computeSchedule, fmtDueDate, parseSchedule } from '@/lib/installments'
 import { computeTermBilling, groupInvoicesByTerm, issuableAmount, type TermInvoice, type TermBilling } from '@/lib/termBilling'
+import { EVENT_LABEL, TERMINAL_EVENTS } from '@/lib/contractEvents'
 import type { ComputedRow } from '@/lib/installments'
 import ContractDetailActions from './ContractDetailActions'
 import SendContractDialog from './SendContractDialog'
@@ -51,6 +52,7 @@ type ContractRow = {
   sentAt: string | null
   data: PreviewData | null
   invoices?: TermInvoice[]
+  events?: { id: string; type: string; detail: string | null; actor: string | null; at: string }[]
 }
 
 const fmtEur = (n: number) => '€' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
@@ -425,6 +427,55 @@ export default function ViewContractPage() {
 
           {/* Right column */}
           <div className="space-y-5">
+            <div className="panel p-5">
+              <div className="flex items-baseline justify-between gap-3 mb-3">
+                <div className="text-xs font-bold text-brown-subtle uppercase tracking-wider">History</div>
+                <span className="text-[11px] text-brown-subtle">
+                  {(contract.events ?? []).length} event{(contract.events ?? []).length === 1 ? '' : 's'}
+                </span>
+              </div>
+
+              {(contract.events ?? []).length === 0 ? (
+                <p className="text-[13px] text-brown-subtle m-0">
+                  Nothing recorded yet. Contracts created before the trail existed have no history.
+                </p>
+              ) : (
+                <ol className="m-0 p-0 list-none flex flex-col">
+                  {[...(contract.events ?? [])].reverse().map((e, i, arr) => {
+                    const terminal = TERMINAL_EVENTS.has(e.type)
+                    return (
+                      <li key={e.id} className="flex gap-3">
+                        {/* A rail rather than separate dots: the trail is one sequence,
+                            and the last item stops the line so it does not trail into
+                            nothing. */}
+                        <div className="flex flex-col items-center shrink-0">
+                          <span
+                            className={`w-2 h-2 rounded-full mt-1.5 ${
+                              e.type === 'signed' ? 'bg-success'
+                                : terminal ? 'bg-brown-subtle'
+                                : 'bg-brown-rust'
+                            }`}
+                          />
+                          {i < arr.length - 1 && <span className="w-px flex-1 bg-brown-dark/10 my-1" />}
+                        </div>
+                        <div className={`pb-3 min-w-0 ${i === arr.length - 1 ? '!pb-0' : ''}`}>
+                          <div className={`text-[13px] font-semibold ${terminal ? 'text-brown-subtle' : 'text-brown-dark'}`}>
+                            {EVENT_LABEL[e.type] ?? e.type}
+                          </div>
+                          <div className="text-[11px] text-brown-subtle">
+                            {fmtDateTime(e.at)}{e.actor ? ` · ${e.actor}` : ''}
+                          </div>
+                          {e.detail && (
+                            <div className="text-[12px] text-brown-dark/80 mt-0.5 break-words">{e.detail}</div>
+                          )}
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ol>
+              )}
+            </div>
+
             <SigningLinkPanel
               contractCode={contract.contractCode}
               status={contract.status}

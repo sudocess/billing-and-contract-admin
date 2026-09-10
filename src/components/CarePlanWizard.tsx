@@ -12,6 +12,7 @@ import {
   DEFAULT_TIERS, DEFAULT_FEATURES, effectiveRate, rateVerdict, RATE_FLOOR, monthlyFee,
   type CareTier, type CareFeature,
 } from '@/lib/carePlan'
+import { newChildContractCode } from '@/lib/contracts'
 
 /**
  * Care plan builder.
@@ -93,10 +94,11 @@ export default function CarePlanWizard() {
   const [error, setError] = useState('')
   const [ownerReg, setOwnerReg] = useState<{ kvk: string; vat: string }>({ kvk: '', vat: '' })
   const [previewLang, setPreviewLang] = useState<'en' | 'nl'>('en')
-  // Fixed once, so the code shown in the preview is the code that gets saved.
-  const [contractCode] = useState(
-    () => `${new Date().getFullYear()}-CARE-${String(Date.now()).slice(-6)}`,
-  )
+  // Every code on file, so a new one cannot collide with an existing family.
+  const [allCodes, setAllCodes] = useState<string[]>([])
+  // Assigned once the client is known and then held, so the code in the preview is
+  // the code that gets saved.
+  const [contractCode, setContractCode] = useState('')
 
   useEffect(() => {
     fetch('/api/settings/owner', { cache: 'no-store' })
@@ -126,6 +128,9 @@ export default function CarePlanWizard() {
     ]).then(([inv, con]) => {
       if (cancelled) return
       setInvoices(inv.invoices ?? [])
+      const codes: string[] = (con.contracts ?? []).map((c: { contractCode: string }) => c.contractCode)
+      setAllCodes(codes)
+      setContractCode(prev => prev || newChildContractCode(picked.clientCode, 'care', codes))
       const all: ContractSummary[] = (con.contracts ?? []).filter(
         (c: ContractSummary & { clientName?: string }) =>
           (c.clientName || '').toLowerCase() === picked.name.toLowerCase(),
@@ -276,7 +281,7 @@ export default function CarePlanWizard() {
   })
 
   async function save() {
-    if (!picked || saving) return
+    if (!picked || saving || !contractCode) return
     setSaving(true); setError('')
     try {
       const res = await fetch('/api/contracts', {

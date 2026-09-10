@@ -329,14 +329,43 @@ model Contract {
   /// Invoices raised against this contract's payment schedule.
   invoices Invoice[]
 
-  signedAt  DateTime?
-  sentAt    DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  signedAt       DateTime?
+  sentAt         DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  /// Everything that has happened to this contract, in order.
+  events         ContractEvent[]
 
   @@index([clientId])
   @@index([parentContractId])
   @@map("contracts")
+}
+
+/// An append-only record of what happened to a contract and when.
+///
+/// The contract row holds only its current state — status, signedAt, updatedAt — which
+/// answers "what is it now" and never "how did it get here". When a signed agreement
+/// was found to have been overwritten, the only evidence was that updatedAt was later
+/// than signedAt; what changed, when, and how many times was unrecoverable.
+///
+/// Rows are never updated or deleted, only appended. A trail that can be edited is not
+/// a trail.
+model ContractEvent {
+  id         String   @id @default(uuid())
+  contractId String
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  /// created | edited | sent | signing_link | signature_requested | signed |
+  /// superseded | replaced | cancelled | reactivated | invoice_issued
+  type   String
+  /// One line for a human: what changed, or who it went to.
+  detail String?
+  /// Who caused it — an admin email, or the client's name when they signed.
+  actor  String?
+  at     DateTime @default(now())
+
+  @@index([contractId, at])
+  @@map("contract_events")
 }
 
 model Client {

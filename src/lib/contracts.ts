@@ -155,34 +155,82 @@ export function upsertKnownClient(updates: Partial<KnownClient> & { name: string
  * `...-0001-v2-v2` on the next revision — the code stopped being parseable at exactly
  * the point a contract had been revised more than once.
  */
-const CODE_SHAPE = /^(\d{4})-([A-Za-z0-9]+)-(\d{4})$/
+/**
+ * Contract codes: `<family>-<NNNN>`, where the last four digits are the VERSION and
+ * everything before them identifies the agreement.
+ *
+ *   2026-9025467-0001      the mother contract — the project itself
+ *   2026-9025467-C1-0001   that client's first care plan
+ *   2026-9025467-E1-0001   that client's first scope extension
+ *
+ * The client segment is shared by all three, so every agreement a client holds is
+ * recognisable as theirs, while each remains its own contract with its own identity
+ * and its own version history. A revision of any of them increments the last group
+ * and nothing else: 2026-9025467-C1-0002 replaces 2026-9025467-C1-0001, and never
+ * touches the mother contract.
+ */
+const CODE_SHAPE = /^(.+)-(\d{4})$/
 
-export function parseContractCode(code: string): { year: string; client: string; version: number } | null {
+export function parseContractCode(code: string): { family: string; version: number } | null {
   const m = CODE_SHAPE.exec(code.trim())
   if (!m) return null
-  return { year: m[1], client: m[2], version: Number(m[3]) }
+  return { family: m[1], version: Number(m[2]) }
+}
+
+/** The kind of agreement a code describes, read from its family segment. */
+export function kindFromCode(code: string): 'project' | 'care' | 'extension' {
+  const parsed = parseContractCode(code)
+  if (!parsed) return 'project'
+  if (/-C\d+$/.test(parsed.family)) return 'care'
+  if (/-E\d+$/.test(parsed.family)) return 'extension'
+  return 'project'
 }
 
 /**
- * The next version in the same family, e.g. `2026-9025467-0001` -> `2026-9025467-0002`.
+ * The next version of the same agreement, e.g. `…-0001` -> `…-0002`.
  *
- * `taken` lets the caller skip codes already in the database, so a gap left by an
- * earlier revision can never produce a duplicate.
+ * `taken` lets the caller skip codes already used, so a gap left by an abandoned
+ * revision can never produce a duplicate.
  */
 export function nextContractVersion(code: string, taken: Iterable<string> = []): string {
   const parsed = parseContractCode(code)
-  // Codes that predate this shape keep the old suffix behaviour rather than being
-  // silently renamed — renaming an issued contract is never worth the tidiness.
+  // Codes predating this shape keep the old suffix rather than being renamed —
+  // renaming an issued contract is never worth the tidiness.
   if (!parsed) return `${code}-v2`
 
   const used = new Set(taken)
   let next = parsed.version + 1
-  let candidate = `${parsed.year}-${parsed.client}-${String(next).padStart(4, '0')}`
+  let candidate = `${parsed.family}-${String(next).padStart(4, '0')}`
   while (used.has(candidate)) {
     next += 1
-    candidate = `${parsed.year}-${parsed.client}-${String(next).padStart(4, '0')}`
+    candidate = `${parsed.family}-${String(next).padStart(4, '0')}`
   }
   return candidate
+}
+
+/**
+ * A first version for a new child agreement of `clientCode`.
+ *
+ * `existing` is every contract code already on file; the family number counts only
+ * that client's agreements of the same kind, so a client's second care plan is C2
+ * regardless of how many extensions or projects sit beside it.
+ */
+export function newChildContractCode(
+  clientCode: string,
+  kind: 'care' | 'extension',
+  existing: Iterable<string> = [],
+  year = new Date().getFullYear(),
+): string {
+  const letter = kind === 'care' ? 'C' : 'E'
+  const prefix = `${year}-${clientCode || '0000000'}-${letter}`
+  const pattern = new RegExp(`^${year}-${clientCode}-${letter}(\\d+)-\\d{4}$`)
+
+  let highest = 0
+  for (const code of existing) {
+    const m = pattern.exec(code)
+    if (m) highest = Math.max(highest, Number(m[1]))
+  }
+  return `${prefix}${highest + 1}-0001`
 }
 
 export function nextContractId(clientCode: string, phaseIndex: number): string {

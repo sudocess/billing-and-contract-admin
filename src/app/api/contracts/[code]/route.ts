@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { readSession } from '@/lib/auth'
+import { recordEvent } from '@/lib/contractEvents'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,6 +26,7 @@ export async function GET(
         },
         orderBy: { invoiceDate: 'asc' },
       },
+      events: { orderBy: { at: 'asc' } },
     },
   })
   if (!contract) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -62,6 +64,10 @@ export async function PATCH(
         signedAt: status === 'SIGNED' ? new Date() : undefined,
       },
     })
+
+    if (status === 'CANCELLED') await recordEvent(updated.id, 'cancelled', null, session.email)
+    else if (status === 'PENDING') await recordEvent(updated.id, 'reactivated', 'Status set to awaiting signature', session.email)
+    else if (status === 'SIGNED') await recordEvent(updated.id, 'signed', 'Marked signed by hand', session.email)
     return NextResponse.json({ ok: true, status: updated.status })
   } catch (err) {
     console.error('[contracts] PATCH failed', err)

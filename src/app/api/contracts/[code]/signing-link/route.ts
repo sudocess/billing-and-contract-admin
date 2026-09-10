@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { readSession } from '@/lib/auth'
+import { recordEvent } from '@/lib/contractEvents'
 
 export const dynamic = 'force-dynamic'
 
@@ -70,6 +71,12 @@ export async function POST(
   // domain in the address bar rather than whatever APP_URL happens to hold.
   const host = req.headers.get('host')
   const origin = req.headers.get('origin') || (host ? `https://${host}` : '')
+
+  if (!stillValid || force) {
+    await recordEvent(contract.id, 'signing_link',
+      force ? 'Signing link regenerated — any earlier link stopped working' : 'Signing link created',
+      session.email)
+  }
 
   return NextResponse.json({
     ok: true,

@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma'
 import { generateContractHtml, type PreviewData } from '@/lib/contractHtml'
 import { htmlToPdf } from '@/lib/htmlToPdf'
 import { sendSignedConfirmationToClient, sendSignedNotificationToAdmin } from '@/lib/email'
+import { recordEvent } from '@/lib/contractEvents'
 
 export const dynamic = 'force-dynamic'
 
@@ -114,14 +115,27 @@ export async function POST(
     },
   })
 
+  await recordEvent(contract.id, 'signed', `Signed by ${name} from ${ip}`, name)
+
   // Signing a revision is what retires the version it replaces. Until this moment the
   // previous version was the agreement in force, so that a revision drafted and then
   // abandoned never leaves the client under no contract at all.
   if (contract.supersedesId) {
-    await prisma.contract.update({
+    const replaced = await prisma.contract.update({
       where: { id: contract.supersedesId },
       data: { status: 'SUPERSEDED', archivedAt: new Date() },
-    }).catch(err => console.error('[sign] could not retire the superseded version', err))
+    }).catch(err => {
+      console.error('[sign] could not retire the superseded version', err)
+      return null
+    })
+    if (replaced) {
+      // Recorded on both: each contract's own trail should explain its own fate
+      // without needing the other one open beside it.
+      await recordEvent(replaced.id, 'superseded',
+        `No longer in force — replaced by ${contract.contractCode}, signed by ${name}`, name)
+      await recordEvent(contract.id, 'replaced',
+        `Replaces ${replaced.contractCode}, which is no longer in force`, name)
+    }
   }
 
   // Send confirmation emails (non-blocking — don't fail the sign action if email fails)
