@@ -651,16 +651,23 @@ export default function CarePlanWizard() {
             {/* One table: the plan cards are its header row, so a card sits exactly
                 over the column it describes. Two separate grids drifted apart by their
                 own gaps, which is what the misalignment was. */}
-            <div className="overflow-x-auto border border-brown-light rounded-lg mb-5">
-              <table className="w-full text-[12px] border-collapse min-w-[600px]">
+            <div className="w-fit max-w-full overflow-x-auto border border-brown-light rounded-lg mb-5">
+              {/* Fixed pixel columns, and the table is not stretched to the page.
+                  Filling 1850px gave each plan a ~400px column holding one word,
+                  which is what put a void between a row and its values. */}
+              <table className="compare-table table-fixed border-collapse text-[12px]">
                 <colgroup>
-                  <col style={{ width: '34%' }} />
-                  <col /><col /><col />
+                  <col style={{ width: '220px' }} />
+                  <col style={{ width: '190px' }} />
+                  <col style={{ width: '190px' }} />
+                  <col style={{ width: '190px' }} />
                 </colgroup>
                 <thead>
                   <tr>
-                    <th className="p-2 align-bottom text-left text-brown-subtle font-bold">
-                      What each plan includes
+                    <th className="p-2.5 align-bottom text-left">
+                      <span className="block text-[10px] font-semibold uppercase tracking-wide text-brown-subtle/70 leading-snug">
+                        ✓ included · — not included
+                      </span>
                     </th>
                     {tiers.map(t => {
                       const agreed = selectedTier === t.key
@@ -675,7 +682,7 @@ export default function CarePlanWizard() {
                             onClick={() => setSelectedTier(agreed ? null : t.key)}
                             aria-pressed={agreed}
                             title={agreed ? 'Agreed — click again to go back to a proposal' : `Mark ${t.name} as the agreed plan`}
-                            className={`w-full rounded-lg border p-3 text-center transition-colors cursor-pointer ${
+                            className={`w-full rounded-lg border p-2.5 text-center transition-colors cursor-pointer ${
                               agreed
                                 ? 'border-brown-rust border-2 bg-brown-pale/50'
                                 : marked
@@ -710,32 +717,57 @@ export default function CarePlanWizard() {
                   </tr>
                 </thead>
                 <tbody>
-                  <tr className="border-t border-brown-light/60">
-                    <th scope="row" className="text-left font-normal p-2 text-brown-dark">Included hours per month</th>
+                  <tr>
+                    <th scope="row" className="py-1.5 px-2.5 text-left font-normal leading-snug text-brown-dark align-middle">Included hours per month</th>
                     {tiers.map(t => (
-                      <td key={t.key} className={`p-2 text-center tabular-nums ${(selectedTier ?? recommended) === t.key ? 'bg-brown-pale/30 font-semibold' : ''}`}>
+                      <td key={t.key} className={`py-1.5 px-2.5 text-center align-middle tabular-nums ${(selectedTier ?? recommended) === t.key ? 'bg-brown-pale/30 border-x border-brown-rust/25 font-semibold' : ''}`}>
                         {t.includedHours} {t.includedHours === 1 ? 'hr' : 'hrs'}
                       </td>
                     ))}
                   </tr>
-                  <tr className="border-t border-brown-light/60">
-                    <th scope="row" className="text-left font-normal p-2 text-brown-dark">Hours beyond the included total</th>
+                  <tr>
+                    <th scope="row" className="py-1.5 px-2.5 text-left font-normal leading-snug text-brown-dark align-middle">Hours beyond the included total</th>
                     {tiers.map(t => (
-                      <td key={t.key} className={`p-2 text-center tabular-nums ${(selectedTier ?? recommended) === t.key ? 'bg-brown-pale/30 font-semibold' : ''}`}>
+                      <td key={t.key} className={`py-1.5 px-2.5 text-center align-middle tabular-nums ${(selectedTier ?? recommended) === t.key ? 'bg-brown-pale/30 border-x border-brown-rust/25 font-semibold' : ''}`}>
                         {fmtEuro(t.overageRate)}/hr
                       </td>
                     ))}
                   </tr>
                   {features.filter(f => f.label.trim()).map((f, i) => (
-                    <tr key={i} className="border-t border-brown-light/60">
-                      <th scope="row" className="text-left font-normal p-2 text-brown-dark">{f.label}</th>
-                      {[0, 1, 2].map(col => (
-                        <td key={col} className={`p-2 text-center ${(selectedTier ?? recommended) === tiers[col].key ? 'bg-brown-pale/30' : ''}`}>
-                          {f.included[col]
-                            ? <span className="text-brown-rust">{f.values[col].trim() || '✓'}</span>
-                            : <span className="text-brown-subtle/50">—</span>}
-                        </td>
-                      ))}
+                    <tr key={i}>
+                      <th scope="row" className="py-1.5 px-2.5 text-left font-normal leading-snug text-brown-dark align-middle">
+                        {f.label}
+                      </th>
+                      {[0, 1, 2].map(col => {
+                        const isSel = (selectedTier ?? recommended) === tiers[col].key
+                        const val = f.values[col].trim()
+                        return (
+                          <td
+                            key={col}
+                            className={`py-1.5 px-2.5 text-center align-middle ${
+                              isSel ? 'bg-brown-pale/30 border-x border-brown-rust/25' : ''
+                            }`}
+                          >
+                            {f.included[col] ? (
+                              val ? (
+                                // Plain text, not rust: rust means selection here, and
+                                // spending it on ordinary values dilutes that.
+                                <span className="text-brown-dark">{val}</span>
+                              ) : (
+                                <>
+                                  <span className="sr-only">Included</span>
+                                  <span aria-hidden="true" className="text-[15px] font-bold text-success leading-none">✓</span>
+                                </>
+                              )
+                            ) : (
+                              <>
+                                <span className="sr-only">Not included</span>
+                                <span aria-hidden="true" className="text-[13px] text-brown-subtle/35">—</span>
+                              </>
+                            )}
+                          </td>
+                        )
+                      })}
                     </tr>
                   ))}
                 </tbody>

@@ -177,6 +177,25 @@ label {
 }
 
 /* ── History Table ── */
+/* ── Plan comparison table (care plan wizard, step 3) ──────────────────────
+   Zebra rather than hover alone: the problem is losing a row while reading it,
+   and hover only helps once a pointer is already on the row — no use on a
+   printed screenshot or a first pass down the table. */
+.compare-table tbody tr { border-top: 1px solid rgba(59, 33, 16, 0.08); }
+.compare-table tbody tr:nth-child(even) { background: rgba(247, 237, 226, 0.45); }
+.compare-table tbody tr:hover { background: var(--color-brown-pale); }
+/* The label column survives horizontal scrolling, which is the real failure at
+   narrow widths — a value with no visible label is worse than no value. */
+.compare-table tbody th[scope="row"] {
+  position: sticky;
+  left: 0;
+  background-color: #fff;
+  box-shadow: 1px 0 0 rgba(59, 33, 16, 0.08);
+  z-index: 1;
+}
+.compare-table tbody tr:nth-child(even) th[scope="row"] { background-color: #f7ede2; }
+.compare-table tbody tr:hover th[scope="row"] { background-color: var(--color-brown-pale); }
+
 .history-table { width: 100%; border-collapse: collapse; }
 .history-table th {
   font-size: 0.72rem;
