@@ -63,8 +63,41 @@ export async function POST(req: Request) {
     name.split(/\s+/).map((s: string) => s[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() ||
     '?'
 
+  /**
+   * Find the client before inventing one.
+   *
+   * A random code can never match an existing row, so the upsert below always CREATED:
+   * every pass through the wizard that did not already know the code minted another
+   * client. That is how one person ended up as four rows, with a live contract on one
+   * and the invoices on another.
+   *
+   * Email first, since it is the thing that is actually unique to a person; then a
+   * case-insensitive name, so "Joey De laat" finds "Joey de Laat" instead of becoming
+   * a second Joey.
+   */
+  const suppliedCode = (body.clientCode as string | undefined)?.trim() || null
+  const email = (body.email as string | undefined)?.trim() || ''
+
+  let existing = suppliedCode
+    ? await prisma.client.findUnique({ where: { clientCode: suppliedCode } })
+    : null
+
+  if (!existing && email) {
+    existing = await prisma.client.findFirst({
+      where: { email: { equals: email, mode: 'insensitive' } },
+      orderBy: { createdAt: 'asc' },
+    })
+  }
+  if (!existing) {
+    existing = await prisma.client.findFirst({
+      where: { name: { equals: name, mode: 'insensitive' } },
+      orderBy: { createdAt: 'asc' },
+    })
+  }
+
   const clientCode =
-    (body.clientCode as string | undefined) ||
+    existing?.clientCode ||
+    suppliedCode ||
     String(Math.floor(1000000 + Math.random() * 9000000))
 
   const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null)
@@ -95,7 +128,10 @@ export async function POST(req: Request) {
       name,
       initials,
       email: (body.email as string) || '',
-      type: (body.type as string) || 'New client',
+      // Only when actually supplied. The wizard never sends it, so defaulting here
+      // reset every client to "New client" on each save — which is why Joey read as
+      // new despite a year of work.
+      ...(typeof body.type === 'string' && body.type.trim() ? { type: body.type.trim() } : {}),
       company: str(body.company),
       phone: str(body.phone),
       kvk: str(body.kvk),

@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { fmtEuro, toCents, fromCents } from '@/lib/installments'
 import {
-  ContractPreview, DeliveryCard, openContractPrintWindow,
+  DeliveryCard, openContractPrintWindow,
   type PastInvoice, type PreviewData,
 } from '@/components/ContractWizard'
+import ContractDocPreview from '@/components/ContractDocPreview'
 import {
   DEFAULT_TIERS, DEFAULT_FEATURES, effectiveRate, rateVerdict, RATE_FLOOR, monthlyFee,
   type CareTier, type CareFeature,
@@ -835,9 +836,7 @@ export default function CarePlanWizard() {
               >Nederlands</button>
             </div>
 
-            <div className="contract-preview">
-              <ContractPreview lang={previewLang} data={previewData} />
-            </div>
+            <ContractDocPreview data={previewData} />
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
               <DeliveryCard icon="↓" label="Download EN" sub="PDF · English version" onClick={() => generate('en')} />

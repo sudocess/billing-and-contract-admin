@@ -67,7 +67,11 @@ export async function POST(req: Request) {
 
   try {
     // Resolve clientId from email or name
+    // Deterministic: without an order, Postgres may return any matching row, so the
+    // same client name could attach one contract to one duplicate and the next to
+    // another. Oldest wins, which is the row the earlier records are already on.
     const matchedClient = await prisma.client.findFirst({
+      orderBy: { createdAt: 'asc' },
       where: {
         OR: [
           body.client.email
