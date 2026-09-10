@@ -13,6 +13,7 @@ import {
   DeliveryCard, openContractPrintWindow, type PreviewData,
 } from '@/components/ContractWizard'
 import ContractDocPreview from '@/components/ContractDocPreview'
+import WizardHeaderActions from '@/components/WizardHeaderActions'
 import { newChildContractCode } from '@/lib/contracts'
 
 /**
@@ -1026,6 +1027,15 @@ export default function ExtensionWizard({ prefill }: { prefill?: ExtensionPrefil
         {/* ───────────── Step 4: generate ───────────── */}
         {step === 4 && (
           <div>
+            <WizardHeaderActions
+              lang={previewLang}
+              onLang={setPreviewLang}
+              onSave={save}
+              onGenerate={() => generate()}
+              saving={saving}
+              saveLabel={editing ? 'Save & republish' : 'Save extension'}
+            />
+
             <h2 className="wstep-heading">Generate extension</h2>
             <p className="wstep-tagline">
               Review the document, choose a language, then download or save and send for signature.

@@ -1119,12 +1119,32 @@ ${section5}
 
 ${printScript}
 <script>
+  /* Report the height of the CONTENT, not of the document.
+     documentElement.scrollHeight is never smaller than the viewport, so once the parent
+     resized the iframe to the reported height, the next measurement returned that height
+     back plus the parent's padding, and the frame grew by that padding on every resize
+     event, forever. The page appeared to load and never stop. body.scrollHeight tracks
+     the content, and the guard drops the echo of our own resize. */
+  var lastH = 0;
+  function contentHeight() {
+    /* The bottom of the last page plus its margin. Measured from the layout rather
+       than from the viewport, so the number cannot depend on how tall the parent has
+       made this frame, which is what created the loop. */
+    var pages = document.querySelectorAll('.page');
+    var last = pages[pages.length - 1];
+    var b = document.body;
+    var byBody = Math.max(b.scrollHeight, b.offsetHeight);
+    return last ? Math.max(byBody, last.offsetTop + last.offsetHeight + 32) : byBody;
+  }
   function reportHeight() {
-    var h = document.documentElement.scrollHeight;
+    var h = contentHeight();
+    if (Math.abs(h - lastH) < 2) return;
+    lastH = h;
     if (window.parent !== window) window.parent.postMessage({ iframeHeight: h }, '*');
   }
   window.addEventListener('load', reportHeight);
-  window.addEventListener('resize', reportHeight);
+  if (window.ResizeObserver) new ResizeObserver(reportHeight).observe(document.body);
+  else window.addEventListener('resize', reportHeight);
 </script>
 </body>
 </html>`

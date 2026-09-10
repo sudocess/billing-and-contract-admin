@@ -17,6 +17,7 @@ import {
 type ApiClient = KnownClient & { contracts?: number; invoices?: number }
 import { generateContractHtml, type PreviewData, type Hosting } from '@/lib/contractHtml'
 import ContractDocPreview from '@/components/ContractDocPreview'
+import WizardHeaderActions from '@/components/WizardHeaderActions'
 import {
   addMonths,
   buildMonthlyInstalments,
@@ -1478,6 +1479,17 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
         {/* ───────────── Step 7 ───────────── */}
         {step === 6 && (
           <div>
+            {/* Save and Generate live in the page header on this step. The preview below
+                is five A4 pages tall, so anything placed under it is out of reach. */}
+            <WizardHeaderActions
+              lang={previewLang}
+              onLang={setPreviewLang}
+              onSave={saveContract}
+              onGenerate={() => generate()}
+              saving={saving}
+              saveLabel={editingCode ? 'Save & republish' : 'Save contract'}
+            />
+
             <h2 className="wstep-heading">Generate contract</h2>
             <p className="wstep-tagline">Review the legally-formatted contract, choose a language, then download or send for signature.</p>
 

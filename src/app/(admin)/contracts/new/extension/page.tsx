@@ -18,6 +18,7 @@ export default function NewScopeExtensionPage() {
             <h1 className="font-heading text-lg font-extrabold text-brown-dark truncate">Scope extension</h1>
           </div>
         </div>
+        <div id="wizard-header-actions" className="flex items-center gap-2" />
       </div>
       <div className="p-4 sm:p-7 flex-1">
         <ExtensionWizard />

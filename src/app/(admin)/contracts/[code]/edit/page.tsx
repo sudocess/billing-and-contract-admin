@@ -53,7 +53,10 @@ export default async function EditContractPage({
           </h1>
         </div>
       </div>
-      <span className="badge badge-warning">Edit &amp; republish</span>
+      <div className="flex items-center gap-2">
+        <span className="badge badge-warning hidden sm:inline-flex">Edit &amp; republish</span>
+        <div id="wizard-header-actions" className="flex items-center gap-2" />
+      </div>
     </div>
   )
 

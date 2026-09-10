@@ -21,7 +21,10 @@ export default function ContractDocPreview({ data }: { data: PreviewData }) {
   useEffect(() => {
     function onMessage(e: MessageEvent) {
       if (typeof e.data === 'object' && e.data?.iframeHeight) {
-        setHeight(Math.ceil(e.data.iframeHeight) + 24)
+        const next = Math.ceil(e.data.iframeHeight) + 24
+        // Ignore a height we are effectively already at. Growing the frame makes the
+        // document report a new height, which would grow the frame again.
+        setHeight(h => (Math.abs(h - next) > 2 ? next : h))
       }
     }
     window.addEventListener('message', onMessage)

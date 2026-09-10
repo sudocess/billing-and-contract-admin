@@ -9,6 +9,7 @@ import {
   type PastInvoice, type PreviewData,
 } from '@/components/ContractWizard'
 import ContractDocPreview from '@/components/ContractDocPreview'
+import WizardHeaderActions from '@/components/WizardHeaderActions'
 import {
   DEFAULT_TIERS, DEFAULT_FEATURES, effectiveRate, rateVerdict, RATE_FLOOR, monthlyFee,
   type CareTier, type CareFeature,
@@ -831,6 +832,15 @@ export default function CarePlanWizard() {
 
         {step === 4 && picked && (
           <div>
+            <WizardHeaderActions
+              lang={previewLang}
+              onLang={setPreviewLang}
+              onSave={save}
+              onGenerate={() => generate()}
+              saving={saving}
+              saveLabel="Save agreement"
+            />
+
             <h2 className="wstep-heading">Generate agreement</h2>
             <p className="wstep-tagline">
               Review the document, choose a language, then download or send for signature.
