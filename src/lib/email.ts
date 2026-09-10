@@ -19,6 +19,29 @@ const transporter = nodemailer.createTransport({
   socketTimeout: 20_000,
 })
 
+/**
+ * The wordmark, for the header of every email that reaches a client.
+ *
+ * Absolute and hard-coded rather than derived from the request, because an email is
+ * read days after it is sent and the address has to keep resolving long after the
+ * process that sent it is gone. Served from `public/`, which the auth proxy exempts by
+ * file extension, so it needs no session. 300x84 for a 150x42 display size, so it stays
+ * sharp on a phone.
+ *
+ * PNG, not the SVG that sits beside it: no mail client renders SVG.
+ */
+const EMAIL_LOGO = 'https://studio.engaginguxdesign.com/email-logo.png'
+
+/**
+ * Images are blocked by default in plenty of mail clients, so the alt text is the
+ * header for a good share of readers. It carries the type styling the wordmark would
+ * have had, which most clients apply to alt text, so a blocked image still reads as
+ * the brand name rather than as a broken box.
+ */
+function logoImg(): string {
+  return `<img src="${EMAIL_LOGO}" width="150" height="42" alt="Engaging UX Design" style="display:block;width:150px;height:42px;border:0;outline:none;text-decoration:none;font-family:Helvetica,Arial,sans-serif;font-size:19px;font-weight:bold;color:#f7ede2;">`
+}
+
 interface SendInvoiceEmailOptions {
   to: string
   subject: string
@@ -60,8 +83,8 @@ function buildEmailWrapper(invoiceBody: string, personalMessage: string, payment
 
 <!-- Header -->
 <tr><td style="background:#3b2110;padding:28px 32px;">
-  <div style="font-family:Helvetica,Arial,sans-serif;font-size:19px;font-weight:bold;color:#f7ede2;letter-spacing:0.02em;">Engaging UX Design</div>
-  <div style="font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#d9c3af;padding-top:4px;">engaginguxdesign.com</div>
+  ${logoImg()}
+  <div style="font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#d9c3af;padding-top:8px;">engaginguxdesign.com</div>
 </td></tr>
 
 <!-- Personal message -->
@@ -220,8 +243,8 @@ export async function sendSignedConfirmationToClient(opts: SendSignedConfirmatio
 <tr><td align="center">
 <table width="600" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(28,16,8,0.08);">
 <tr><td style="background:#1c1008;padding:28px 32px;">
-  <div style="font-family:Helvetica,Arial,sans-serif;font-size:19px;font-weight:bold;color:#f7ede2;letter-spacing:0.02em;">Engaging UX Design</div>
-  <div style="font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#d9c3af;padding-top:4px;">engaginguxdesign.com</div>
+  ${logoImg()}
+  <div style="font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#d9c3af;padding-top:8px;">engaginguxdesign.com</div>
 </td></tr>
 <tr><td style="padding:32px 32px 8px;">
   <div style="font-family:Helvetica,Arial,sans-serif;font-size:22px;font-weight:bold;color:#1c1008;margin-bottom:8px;">Contract signed ✓</div>
@@ -293,7 +316,8 @@ export async function sendSignedNotificationToAdmin(opts: SendSignedNotification
 <tr><td align="center">
 <table width="600" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(28,16,8,0.08);">
 <tr><td style="background:#1c1008;padding:28px 24px;">
-  <div style="font-family:Helvetica,Arial,sans-serif;font-size:19px;font-weight:bold;color:#f7ede2;">Contract signed</div>
+  ${logoImg()}
+  <div style="font-family:Helvetica,Arial,sans-serif;font-size:19px;font-weight:bold;color:#f7ede2;padding-top:14px;">Contract signed</div>
   <div style="font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#d9c3af;padding-top:4px;">${escapeHtml(opts.clientName)} signed ${escapeHtml(opts.contractCode)}</div>
 </td></tr>
 <tr><td style="padding:28px 32px;">
@@ -548,8 +572,8 @@ export function buildContractEmailWrapper(
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(28,16,8,0.08);">
 
 <tr><td style="background:#3b2110;padding:28px 24px;">
-  <div style="font-family:Helvetica,Arial,sans-serif;font-size:19px;font-weight:bold;color:#f7ede2;letter-spacing:0.02em;">Engaging UX Design</div>
-  <div style="font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#d9c3af;padding-top:4px;">engaginguxdesign.com</div>
+  ${logoImg()}
+  <div style="font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#d9c3af;padding-top:8px;">engaginguxdesign.com</div>
 </td></tr>
 
 ${personalMessage ? `<tr><td style="padding:28px 24px 4px;">

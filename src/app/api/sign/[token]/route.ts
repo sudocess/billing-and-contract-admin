@@ -10,6 +10,10 @@ import { requestOrigin } from '@/lib/appUrl'
 import { recordEvent } from '@/lib/contractEvents'
 
 export const dynamic = 'force-dynamic'
+/* This request launches Chromium to render the signed PDF, and on a cold start it
+   first downloads and unpacks the browser. The platform default is far too short for
+   that, and running out of time here means the client cannot sign at all. */
+export const maxDuration = 60
 
 let _sigBase64: string | null = null
 function getSignatureBase64(): string {
@@ -139,7 +143,12 @@ export async function POST(
     }
   }
 
-  // Send confirmation emails (non-blocking — don't fail the sign action if email fails)
+  /* The client's own copy of what they just signed, PDF attached.
+     Non-blocking, because a signature must not fail because a mail server did, but
+     every outcome is written to the contract's trail. The silent case was the worst
+     of the three: a contract with no email address on it sent nothing at all and
+     said nothing about it, so the client simply never received their copy and the
+     record showed no reason why. */
   const clientEmail = (contract.dedicatedEmail || contract.clientEmail || '').trim()
   if (clientEmail) {
     sendSignedConfirmationToClient({
@@ -149,7 +158,21 @@ export async function POST(
       projectName: contract.projectName,
       signedAt,
       pdfBuffer,
-    }).catch(err => console.error('[sign] client confirmation email failed', err))
+    })
+      .then(() =>
+        recordEvent(contract.id, 'signed',
+          `Signed copy emailed to ${clientEmail}`, 'system'),
+      )
+      .catch(err => {
+        console.error('[sign] client confirmation email failed', err)
+        return recordEvent(contract.id, 'signed',
+          `Signed copy could NOT be emailed to ${clientEmail}: ${err instanceof Error ? err.message : 'unknown mail error'}`,
+          'system')
+      })
+  } else {
+    await recordEvent(contract.id, 'signed',
+      'No email address on this contract, so the client was not sent their signed copy',
+      'system')
   }
 
   /* Tell the owner, at the address they actually read.
