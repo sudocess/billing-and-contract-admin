@@ -76,9 +76,9 @@ export default function CarePlanWizard() {
   // Three tiers quoted side by side, one marked as the recommendation.
   const [tiers, setTiers] = useState<CareTier[]>(() => DEFAULT_TIERS.map(t => ({ ...t })))
   const [recommended, setRecommended] = useState<CareTier['key']>('business')
-  // Null while this is a proposal. Set once the client has picked, and then it is the
-  // tier the contract binds — the document changes from offering three to stating one.
-  const [selectedTier, setSelectedTier] = useState<CareTier['key'] | null>(null)
+  // The package this contract binds. Defaults to the recommendation and is always set:
+  // a care plan is a binding agreement, not an offer of three prices.
+  const [selectedTier, setSelectedTier] = useState<CareTier['key'] | null>('business')
   const [features, setFeatures] = useState<CareFeature[]>(() =>
     DEFAULT_FEATURES.map(f => ({ ...f, values: [...f.values] as [string, string, string] })),
   )
@@ -142,7 +142,6 @@ export default function CarePlanWizard() {
   }, [picked])
 
   const chosen = tiers.find(t => t.key === (selectedTier ?? recommended)) ?? tiers[1]
-  const isProposal = selectedTier === null
   const hoursNum = chosen.includedHours
   const rateNum = chosen.overageRate
   const fee = monthlyFee(chosen)
@@ -649,26 +648,16 @@ export default function CarePlanWizard() {
         {step === 3 && picked && (
           <div>
             <h2 className="wstep-heading">Plans &amp; pricing</h2>
-            <p className="wstep-tagline">Pick the agreed plan, or leave it as a proposal showing all three.</p>
+            <p className="wstep-tagline">Choose the package this contract binds. All three are printed for comparison.</p>
 
             <div className="flex flex-wrap items-baseline justify-between gap-3 mb-2">
               <span className="text-xs font-bold uppercase tracking-wider text-brown-muted">
-                {isProposal ? 'No plan agreed yet — this sends as a proposal' : 'Agreed plan'}
+                Chosen package
               </span>
-              {!isProposal && (
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-sm !py-1 !text-[11px]"
-                  onClick={() => setSelectedTier(null)}
-                >
-                  Clear — send as a proposal
-                </button>
-              )}
             </div>
             <p className="text-[12px] text-brown-subtle mt-0 mb-3">
-              {isProposal
-                ? `Pick the plan the client agreed to and the contract will bind it. Left as a proposal, the document shows all three with ${tiers.find(t => t.key === recommended)?.name} recommended and states no fee.`
-                : 'The contract binds this plan. Click it again to go back to a proposal.'}
+              The contract binds the package marked below. The other two are printed alongside it so
+              the client can see what the difference buys.
             </p>
 
             {/* One table: the plan cards are its header row, so a card sits exactly
@@ -700,12 +689,11 @@ export default function CarePlanWizard() {
                         <th key={t.key} className="p-1.5 align-bottom">
                           <button
                             type="button"
-                            // Clicking the agreed plan again returns the document to a
-                            // proposal, so the decision is reversible from the control
-                            // that made it.
-                            onClick={() => setSelectedTier(agreed ? null : t.key)}
+                            // The card is the control: clicking one binds the contract to
+                            // that package, which is the decision this step exists for.
+                            onClick={() => setSelectedTier(t.key)}
                             aria-pressed={agreed}
-                            title={agreed ? 'Agreed — click again to go back to a proposal' : `Mark ${t.name} as the agreed plan`}
+                            title={agreed ? 'This is the package the contract binds' : `Bind this contract to ${t.name}`}
                             className={`w-full rounded-lg border p-2.5 text-center transition-colors cursor-pointer ${
                               agreed
                                 ? 'border-brown-rust border-2 bg-brown-pale/50'
@@ -728,11 +716,9 @@ export default function CarePlanWizard() {
                               {t.blurb || '—'}
                             </span>
                             <span className="block text-[10px] font-bold uppercase tracking-widest mt-1.5">
-                              {agreed
-                                ? <span className="text-brown-rust">✓ Agreed</span>
-                                : marked
-                                  ? <span className="text-brown-rust">Recommended</span>
-                                  : <span className="text-brown-subtle/60">Choose this plan</span>}
+                              {marked
+                                ? <span className="text-brown-rust">✓ Chosen</span>
+                                : <span className="text-brown-subtle/60">Choose this package</span>}
                             </span>
                           </button>
                         </th>
@@ -818,7 +804,7 @@ export default function CarePlanWizard() {
 
         {step === 4 && picked && (
           <div>
-            <h2 className="wstep-heading">Generate {isProposal ? 'proposal' : 'agreement'}</h2>
+            <h2 className="wstep-heading">Generate agreement</h2>
             <p className="wstep-tagline">
               Review the document, choose a language, then download or send for signature.
             </p>
@@ -863,10 +849,10 @@ export default function CarePlanWizard() {
           ) : (
             <div className="flex gap-2">
               <button type="button" className="btn btn-ghost" onClick={save} disabled={saving || !picked}>
-                {saving ? 'Saving…' : isProposal ? 'Save proposal' : 'Save agreement'}
+                {saving ? 'Saving…' : 'Save agreement'}
               </button>
               <button type="button" className="btn btn-primary" onClick={() => generate()}>
-                Generate {isProposal ? 'proposal' : 'contract'}
+                Generate contract
               </button>
             </div>
           )}

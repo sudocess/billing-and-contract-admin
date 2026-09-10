@@ -431,9 +431,8 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
    * does not affect.
    */
   function careTerms(c: NonNullable<PreviewData['carePlan']>): string {
-    // On an agreed plan these are real figures. On a proposal they would be the
-    // recommended tier's, printed against three plans they are wrong for: two hours
-    // of rollover on a one-hour plan is twice the whole allowance.
+    // Real figures once a package is bound. Where none is marked the wording stays
+    // proportional rather than quoting one tier's numbers beside three prices.
     const agreed = !!c.selectedTier
     const rollover = Math.max(0.5, Math.round((c.includedHours / 2) * 2) / 2)
     const threshold = Math.max(1, Math.round(c.includedHours * 2))
@@ -476,10 +475,11 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
   const docKind: 'care' | 'extension' | 'project' =
     care ? 'care' : isExtension ? 'extension' : 'project'
 
-  // A proposal offers three plans and binds none; an agreement states the one chosen.
-  const careAgreed = !!care?.selectedTier
+  // A care plan is always a binding agreement. Where no package has been marked as
+  // chosen, the recommended one is what it binds, rather than the document hedging.
+  const chosenTier = care?.tiers?.find(t => t.key === (care?.selectedTier ?? care?.recommended))
   const docTitle =
-    docKind === 'care' ? (careAgreed ? 'Care Plan Agreement' : 'Care Plan Proposal')
+    docKind === 'care' ? 'Care Plan Agreement'
       : docKind === 'extension' ? 'Scope Extension'
       : 'Service Agreement'
 
@@ -492,12 +492,12 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
     docKind === 'care' && care
       ? `
         <div class="detail-cell">
-          <div class="detail-cell-label">${careAgreed ? 'Monthly fee' : 'Plans offered'}</div>
-          <div class="detail-cell-value accent">${careAgreed ? `${fmt(care.monthlyFee)} <span style="font-size:9.5px;font-weight:400;color:#9a7a65;">per month, excl. VAT</span>` : `${(care.tiers ?? []).length || 3} to choose from`}</div>
+          <div class="detail-cell-label">Chosen package</div>
+          <div class="detail-cell-value accent">${esc(chosenTier?.name ?? '')}</div>
         </div>
         <div class="detail-cell">
-          <div class="detail-cell-label">${careAgreed ? 'Included hours' : 'Recommended'}</div>
-          <div class="detail-cell-value">${careAgreed ? `${care.includedHours} hours per month` : esc((care.tiers ?? []).find(t => t.key === care.recommended)?.name ?? '')}</div>
+          <div class="detail-cell-label">Monthly support</div>
+          <div class="detail-cell-value">${care.includedHours} ${care.includedHours === 1 ? 'hour' : 'hours'} per month</div>
         </div>
         <div class="detail-cell">
           <div class="detail-cell-label">Starts</div>
@@ -534,11 +534,7 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
   const paymentLabel = docKind === 'care' ? '4. Fees &amp; Billing' : '4. Payment Schedule'
 
   const paymentBlock =
-    docKind === 'care' && care && !careAgreed
-      ? `
-      <div class="note">No fee is payable until a plan is chosen. Once a plan is agreed, that plan&rsquo;s fee is billed monthly in advance and the terms below apply to it.</div>
-      ${careTerms(care)}`
-      : docKind === 'care' && care
+    docKind === 'care' && care
       ? `
       <table class="payment-table">
         <thead>
@@ -615,9 +611,7 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
           <tr><th scope="row"></th>${blurb}</tr>
         </tbody>
       </table>
-      <div class="note">${careAgreed
-        ? `The highlighted plan is the one agreed, and is the plan this agreement covers.`
-        : `The highlighted plan is the one recommended for this engagement. No plan is binding until one is chosen and this document is signed.`} Plans may be changed at any month boundary with ${care?.noticeDays ?? 30} days&rsquo; notice, and no plan carries a minimum term.</div>`
+      <div class="note">The highlighted package is the one this agreement covers. The others are shown so the difference is clear, and the package may be changed at any month boundary with ${care?.noticeDays ?? 30} days&rsquo; notice. No package carries a minimum term.</div>`
   })()
 
   // For a care plan the plans and what they include ARE the scope of work, so the
