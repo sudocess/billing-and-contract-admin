@@ -286,13 +286,13 @@ export default function SettingsClient({ currentEmail }: { currentEmail: string 
           <div className="pt-4 border-t border-brown-light">
             <Field
               label="Send signing notifications to"
-              hint="Where to email you when a client signs a contract. Leave empty to use the mailbox the app sends from."
+              hint="Where to email you when a client signs a contract. Leave empty for info@engaginguxdesign.com."
             >
               <input
                 type="email"
                 value={notifyEmail}
                 onChange={e => setNotifyEmail(e.target.value)}
-                placeholder="you@example.com"
+                placeholder="info@engaginguxdesign.com"
               />
             </Field>
           </div>

@@ -33,6 +33,16 @@ const transporter = nodemailer.createTransport({
 const EMAIL_LOGO = 'https://studio.engaginguxdesign.com/email-logo.png'
 
 /**
+ * Where "a client signed" notifications go unless Settings overrides it.
+ *
+ * Named rather than read from SMTP_USER. It resolved to the same address, but only
+ * because the notification inbox and the sending mailbox happen to be the same one,
+ * and changing which account the app sends from would then have silently moved where
+ * these land.
+ */
+export const NOTIFY_DEFAULT = 'info@engaginguxdesign.com'
+
+/**
  * Images are blocked by default in plenty of mail clients, so the alt text is the
  * header for a good share of readers. It carries the type styling the wordmark would
  * have had, which most clients apply to alt text, so a blocked image still reads as
@@ -307,11 +317,7 @@ interface SendSignedNotificationOptions {
   /** Null where the render failed; the notification still goes out. */
   pdfBuffer: Buffer | null
   /**
-   * Where the notification goes.
-   *
-   * Was hard-coded to SMTP_USER, the mailbox the app sends from, which is not
-   * necessarily the inbox anyone reads. Set in Settings; falls back to the old
-   * behaviour when empty.
+   * Where the notification goes. Empty means NOTIFY_DEFAULT.
    */
   to?: string
   /** Link straight to the contract in the admin app, so the mail is actionable. */
@@ -362,7 +368,7 @@ export async function sendSignedNotificationToAdmin(opts: SendSignedNotification
 </table>
 </body></html>`
 
-  const adminEmail = (opts.to || '').trim() || process.env.SMTP_USER || 'info@engaginguxdesign.com'
+  const adminEmail = (opts.to || '').trim() || NOTIFY_DEFAULT
   await transporter.sendMail({
     from: process.env.SMTP_FROM || 'Engaging UX Design <info@engaginguxdesign.com>',
     to: adminEmail,

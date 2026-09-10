@@ -5,7 +5,7 @@ import { createHash, randomUUID } from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { generateContractHtml, type PreviewData } from '@/lib/contractHtml'
 import { htmlToPdf } from '@/lib/htmlToPdf'
-import { sendSignedConfirmationToClient, sendSignedNotificationToAdmin } from '@/lib/email'
+import { sendSignedConfirmationToClient, sendSignedNotificationToAdmin, NOTIFY_DEFAULT } from '@/lib/email'
 import { requestOrigin } from '@/lib/appUrl'
 import { recordEvent } from '@/lib/contractEvents'
 
@@ -239,8 +239,10 @@ export async function POST(
           ? `${origin}/contracts/${encodeURIComponent(contract.contractCode)}`
           : undefined,
       })
+      // The real address, not "the sending mailbox". A trail entry that does not name
+      // where something went cannot answer the question it exists to answer.
       await recordEvent(contract.id, 'signed',
-        `Signing notification emailed to ${notifyTo || 'the sending mailbox'}`, 'system')
+        `Signing notification emailed to ${notifyTo || NOTIFY_DEFAULT}`, 'system')
     } catch (err) {
       console.error('[sign] admin notification email failed', err)
       await recordEvent(contract.id, 'signed',
