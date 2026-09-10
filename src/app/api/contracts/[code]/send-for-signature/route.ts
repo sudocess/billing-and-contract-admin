@@ -71,7 +71,12 @@ export async function POST(
       message: `Hi ${contract.clientName.split(' ')[0]},\n\nPlease review and sign your service agreement from Engaging UX Design. The link below is valid for 14 days.`,
       contractSummaryHtml: summaryHtml,
       viewUrl: signingUrl,
-      ctaLabel: 'Review & sign your contract',
+      contractCode: contract.contractCode,
+      language: contract.language,
+      variant: 'signature',
+      // Already computed for the token, and now printed so the client knows how long
+      // they have rather than discovering it from a dead link.
+      expiresAt: signingTokenExpiresAt,
     })
   } catch (err) {
     console.error('[contracts] send-for-signature failed', err)

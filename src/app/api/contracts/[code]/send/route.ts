@@ -74,9 +74,11 @@ export async function POST(
       message,
       contractSummaryHtml: summaryHtml,
       viewUrl,
+      contractCode: contract.contractCode,
+      language: contract.language,
       // This link goes to the read-only preview. Signing happens through Send for
       // signature, which is a different button and a different page.
-      ctaLabel: 'Review your contract',
+      variant: 'readonly',
     })
 
     const updated = await prisma.contract.update({

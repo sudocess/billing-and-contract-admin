@@ -12,6 +12,7 @@
  */
 
 const LOCAL = /^https?:\/\/(localhost|127\.|0\.0\.0\.0|\[::1\])/i
+const VERCEL_HOST = /^https?:\/\/[^/]+\.vercel\.app$/i
 
 /** The host the admin is actually browsing. Right for a link shown in the admin UI. */
 export function requestOrigin(req: Request): string {
@@ -27,32 +28,30 @@ export function requestOrigin(req: Request): string {
 /**
  * An origin fit to put in an email.
  *
- * APP_URL wins when it is set, because the request host can be a preview deployment,
- * and a preview URL mailed to a client is access-protected and expires. Where APP_URL
- * is missing or unusable this falls back to the request, and where even that leaves a
- * localhost address it reports an error rather than sending a dead link.
+ * The address bar wins. The domain the admin is actually working on is live by
+ * definition, whereas APP_URL is a second place to be wrong and nothing tells you when
+ * it goes stale: it sat pointing at the old `billing-and-contract-admin.vercel.app`
+ * long after the app moved to its own domain, and every emailed link carried that.
+ *
+ * APP_URL is still the fallback, and it wins in one case: a `*.vercel.app` host. Those
+ * are deployment URLs, they can be access-protected and they change on every deploy, so
+ * a custom domain is preferred whenever one of the two is one.
  */
 export function emailOrigin(req: Request): { origin: string; error: string | null } {
   const configured = (process.env.APP_URL || '').trim().replace(/\/+$/, '')
   const fromRequest = requestOrigin(req)
 
-  // A stale APP_URL pointing at localhost should not stop a send that is being made
-  // from the real domain. Prefer whichever of the two a client could actually open.
-  const preferred = /^https?:\/\/.+/i.test(configured) ? configured : fromRequest
-  const candidate =
-    LOCAL.test(preferred) && fromRequest && !LOCAL.test(fromRequest) ? fromRequest : preferred
+  const usable = [fromRequest, configured].filter(
+    (u) => /^https?:\/\/.+/i.test(u) && !LOCAL.test(u),
+  )
 
-  if (!candidate) {
+  if (usable.length === 0) {
+    const seen = [fromRequest, configured].filter(Boolean).join(', ') || 'nothing'
     return {
       origin: '',
-      error: 'Cannot work out this app\'s public address, so the link in the email would be broken. Set APP_URL and redeploy.',
+      error: `No public address is available for this app, so the link in the email would be broken. Seen: ${seen}. Set APP_URL to the live domain and redeploy.`,
     }
   }
-  if (LOCAL.test(candidate)) {
-    return {
-      origin: candidate,
-      error: `The only address available is ${candidate}, which nobody outside this machine can open. Set APP_URL to the live domain and redeploy.`,
-    }
-  }
-  return { origin: candidate, error: null }
+
+  return { origin: usable.find((u) => !VERCEL_HOST.test(u)) ?? usable[0], error: null }
 }

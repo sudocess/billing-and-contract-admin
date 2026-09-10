@@ -1362,7 +1362,7 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
             {hosting !== 'none' && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3">
                 {hosting === 'both' && (
-                  <Field label="Domain price (€/year)">
+                  <Field label="Domain & hosting setup (one-off €)">
                     <input type="number" step="0.01" value={domainPrice} onChange={e => setDomainPrice(e.target.value)} placeholder={contractType === 'custom' ? '0.00' : '12.00'} />
                   </Field>
                 )}
@@ -1373,7 +1373,7 @@ export default function ContractWizard({ prefill, mode = 'new' }: { prefill?: Wi
             )}
 
             <div className="info-note mb-3">
-              {hosting === 'both' && `Domain + Hostinger hosting passed through at cost, charged annually to client. Combined: ${fmtEur((parseFloat(domainPrice) || 0) + (parseFloat(hostingPrice) || 0))}/yr.`}
+              {hosting === 'both' && `Setup is a one-off ${fmtEur(parseFloat(domainPrice) || 0)}. Hostinger hosting is then passed through at cost, ${fmtEur(parseFloat(hostingPrice) || 0)}/yr, renewing until cancelled.`}
               {hosting === 'hosting' && `Hostinger hosting passed through at cost. Client provides their own domain. ${fmtEur(parseFloat(hostingPrice) || 0)}/yr.`}
               {hosting === 'none' && 'Client manages their own hosting. No pass-through costs. A responsibility clause will be added to the contract.'}
             </div>

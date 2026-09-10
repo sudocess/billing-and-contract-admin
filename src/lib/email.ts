@@ -60,12 +60,8 @@ function buildEmailWrapper(invoiceBody: string, personalMessage: string, payment
 
 <!-- Header -->
 <tr><td style="background:#3b2110;padding:28px 32px;">
-  <table width="100%" cellpadding="0" cellspacing="0" border="0">
-  <tr>
-    <td style="font-family:Helvetica,Arial,sans-serif;font-size:18px;font-weight:bold;color:#f7ede2;letter-spacing:0.02em;">Engaging UX Design</td>
-    <td align="right" style="font-family:Helvetica,Arial,sans-serif;font-size:12px;color:rgba(247,237,226,0.6);">engaginguxdesign.com</td>
-  </tr>
-  </table>
+  <div style="font-family:Helvetica,Arial,sans-serif;font-size:19px;font-weight:bold;color:#f7ede2;letter-spacing:0.02em;">Engaging UX Design</div>
+  <div style="font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#d9c3af;padding-top:4px;">engaginguxdesign.com</div>
 </td></tr>
 
 <!-- Personal message -->
@@ -224,10 +220,8 @@ export async function sendSignedConfirmationToClient(opts: SendSignedConfirmatio
 <tr><td align="center">
 <table width="600" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(28,16,8,0.08);">
 <tr><td style="background:#1c1008;padding:28px 32px;">
-  <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
-    <td style="font-family:Helvetica,Arial,sans-serif;font-size:18px;font-weight:bold;color:#f7ede2;">Engaging UX Design</td>
-    <td align="right" style="font-family:Helvetica,Arial,sans-serif;font-size:12px;color:rgba(247,237,226,0.6);">engaginguxdesign.com</td>
-  </tr></table>
+  <div style="font-family:Helvetica,Arial,sans-serif;font-size:19px;font-weight:bold;color:#f7ede2;letter-spacing:0.02em;">Engaging UX Design</div>
+  <div style="font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#d9c3af;padding-top:4px;">engaginguxdesign.com</div>
 </td></tr>
 <tr><td style="padding:32px 32px 8px;">
   <div style="font-family:Helvetica,Arial,sans-serif;font-size:22px;font-weight:bold;color:#1c1008;margin-bottom:8px;">Contract signed ✓</div>
@@ -332,13 +326,20 @@ interface SendContractEmailOptions {
   message: string
   contractSummaryHtml: string
   viewUrl: string
+  contractCode: string
+  language: string
   /**
-   * What the button says. It has to match where the button goes: the signing route
-   * links to a page with a real signature field, the send-to-client route links to a
-   * read-only preview that tells the reader to reply by email. Both used to promise
-   * "Review & sign your contract", so half the clients who clicked it found no way to
-   * sign and no explanation.
+   * Which of the two contract emails this is.
+   *
+   * Passed in rather than inferred from whether an expiry happens to be set, because
+   * the copy and the promise differ: 'signature' links to a page with a real signature
+   * field, 'readonly' links to a preview that cannot be signed and says to reply by
+   * email instead. Both used to claim "Review & sign your contract", so half the
+   * clients who clicked found no way to sign and no explanation.
    */
+  variant: 'readonly' | 'signature'
+  /** Signature variant only: when the link stops working. */
+  expiresAt?: Date | null
   ctaLabel?: string
 }
 
@@ -347,7 +348,13 @@ export async function sendContractEmail(opts: SendContractEmailOptions) {
     opts.contractSummaryHtml,
     opts.message,
     opts.viewUrl,
-    opts.ctaLabel || 'Review your contract',
+    opts.ctaLabel || (opts.variant === 'signature' ? 'Review & sign your contract' : 'Review your contract'),
+    {
+      contractCode: opts.contractCode,
+      language: opts.language === 'nl' ? 'nl' : 'en',
+      variant: opts.variant,
+      expiresAt: opts.expiresAt ?? null,
+    },
   )
 
   await transporter.sendMail({
@@ -368,89 +375,206 @@ export function buildContractSummaryHTML(input: {
   language: string
 }): string {
   const isNL = input.language === 'nl'
-  const fmt = (n: number) => '€' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+  const fmt = (n: number) => '\u20ac' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+  const title = input.projectName
+    ? escapeHtml(input.projectName)
+    : (isNL ? 'Dienstverleningsovereenkomst' : 'Service agreement')
 
+  /* Ordered by what a client actually needs first. The contract number used to sit at
+     the top carrying the same weight as everything else; it is a lookup key for a
+     support conversation, not the thing a first-time reader is looking for, so it now
+     sits last and quiet, and the money is the number that carries the block. */
   return `
-    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-family:Helvetica,Arial,sans-serif;">
-    <tr>
-      <td style="font-size:11px;font-weight:bold;text-transform:uppercase;letter-spacing:0.1em;color:#7a5a40;padding-bottom:6px;">
-        ${isNL ? 'Contractoverzicht' : 'Contract Summary'}
-      </td>
-    </tr>
-    <tr><td style="padding:4px 0;font-size:13px;color:#3b2110;">
-      <strong>${isNL ? 'Contractnummer' : 'Contract Number'}:</strong> <span style="font-family:monospace;">${escapeHtml(input.contractCode)}</span>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-family:Helvetica,Arial,sans-serif;">
+    <tr><td style="font-size:11px;font-weight:bold;letter-spacing:0.08em;color:#7a5a40;padding-bottom:10px;">
+      ${isNL ? 'CONTRACTOVERZICHT' : 'CONTRACT SUMMARY'}
     </td></tr>
-    ${input.projectName ? `<tr><td style="padding:4px 0;font-size:13px;color:#3b2110;">
-      <strong>${isNL ? 'Project' : 'Project'}:</strong> ${escapeHtml(input.projectName)}
-    </td></tr>` : ''}
-    <tr><td style="padding:4px 0;font-size:13px;color:#3b2110;">
-      <strong>${isNL ? 'Klant' : 'Client'}:</strong> ${escapeHtml(input.clientName)}
+
+    <tr><td style="padding-bottom:4px;font-size:19px;font-weight:bold;color:#1c1008;line-height:1.3;">
+      ${title}
     </td></tr>
-    <tr><td style="padding:4px 0;font-size:13px;color:#3b2110;">
-      <strong>${isNL ? 'Fase' : 'Phase'}:</strong> ${escapeHtml(input.phaseLabel)}
+    <tr><td style="padding-bottom:16px;font-size:13px;color:#7a5a40;">
+      ${isNL ? 'Voor' : 'For'} ${escapeHtml(input.clientName)}
     </td></tr>
-    ${input.initFee > 0 ? `<tr><td style="padding:4px 0;font-size:13px;color:#3b2110;">
-      <strong>${isNL ? 'Aanvangshonorarium' : 'Initiation Fee'}:</strong> ${fmt(input.initFee)}
-    </td></tr>` : ''}
-    <tr><td style="padding:10px 0 0;font-size:16px;font-weight:bold;color:#1c1008;border-top:2px solid rgba(59,33,16,0.12);">
-      ${isNL ? 'Totale waarde' : 'Total Contract Value'}: ${fmt(input.totalValue)}
+
+    <tr><td style="border-top:1px solid rgba(59,33,16,0.14);padding-top:14px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr><td style="font-size:11px;letter-spacing:0.06em;color:#7a5a40;padding-bottom:4px;">
+          ${isNL ? 'TOTALE CONTRACTWAARDE' : 'TOTAL CONTRACT VALUE'}
+        </td></tr>
+        <tr><td style="font-size:26px;font-weight:bold;color:#1c1008;padding-bottom:${input.initFee > 0 ? '2px' : '14px'};">
+          ${fmt(input.totalValue)}
+        </td></tr>
+        ${input.initFee > 0 ? `<tr><td style="font-size:12px;color:#7a5a40;padding-bottom:14px;">
+          ${isNL
+            ? `Inclusief een aanvangshonorarium van ${fmt(input.initFee)}`
+            : `Includes an initiation fee of ${fmt(input.initFee)}`}
+        </td></tr>` : ''}
+      </table>
+    </td></tr>
+
+    <tr><td style="border-top:1px solid rgba(59,33,16,0.14);padding-top:14px;">
+      <span style="display:inline-block;font-size:11px;font-weight:bold;color:#8b3a1e;background:#fdf0e8;border-radius:100px;padding:4px 12px;">
+        ${escapeHtml(input.phaseLabel)}
+      </span>
+      <div style="padding-top:12px;font-size:12px;color:#7a5a40;">
+        ${isNL ? 'Contractnr.' : 'Contract no.'}
+        <span style="font-family:'Courier New',Courier,monospace;color:#7a5a40;">${escapeHtml(input.contractCode)}</span>
+      </div>
     </td></tr>
     </table>`
 }
 
-function buildContractEmailWrapper(
+/**
+ * Let a long URL break where a URL is allowed to break.
+ *
+ * Two problems at once. `word-break:break-all` alone splits anywhere, so the link tore
+ * the domain and the contract number mid-word and read as a corrupted string. But
+ * `<wbr>` alone is not enough either: a 48-character signing token contains no slash
+ * and no hyphen, so it stays one unbreakable run, and in table layout that run sets
+ * the minimum width of the whole email. The card then renders 600px wide inside a
+ * 360px phone and everything overflows off the right edge.
+ *
+ * So: break at every slash and hyphen, which is where a reader expects a URL to wrap,
+ * and inside any run still longer than 24 characters break it up as well, which keeps
+ * the minimum width small without touching the readable parts.
+ */
+function breakableUrl(escapedUrl: string): string {
+  return escapedUrl
+    .replace(/([/-])/g, '$1\u0000')
+    .split('\u0000')
+    .map(part => part.replace(/([^/-]{24})(?=[^/-])/g, '$1\u0000'))
+    .join('\u0000')
+    .split('\u0000')
+    .join('<wbr>')
+}
+
+interface ContractEmailContext {
+  contractCode: string
+  language: 'en' | 'nl'
+  variant: 'readonly' | 'signature'
+  expiresAt?: Date | null
+}
+
+/** Exported so the rendered email can be inspected without sending one. */
+export function buildContractEmailWrapper(
   summaryBody: string,
   personalMessage: string,
   viewUrl: string,
   ctaLabel: string,
+  ctx: ContractEmailContext,
 ): string {
+  const isNL = ctx.language === 'nl'
+  const isSignature = ctx.variant === 'signature'
+  const safeCode = escapeHtml(ctx.contractCode)
+  // Escaped once, here, and used for both the href and the visible copy. The href was
+  // previously interpolated raw while only the display text was escaped.
+  const safeUrl = escapeHtml(viewUrl)
+  const safeCta = escapeHtml(ctaLabel)
+
+  const preheaderText = isNL
+    ? isSignature
+      ? `Je overeenkomst staat klaar om te ondertekenen. Contract ${safeCode}, geldig voor 14 dagen.`
+      : `Je overeenkomst staat klaar om te bekijken. Contract ${safeCode}.`
+    : isSignature
+      ? `Your service agreement is ready to sign. Contract ${safeCode}, valid for 14 days.`
+      : `Your service agreement is ready to review. Contract ${safeCode}.`
+
+  const ctaHelperText = isNL
+    ? isSignature
+      ? 'Deze link opent een beveiligde pagina waar je de overeenkomst kunt bekijken en digitaal kunt ondertekenen.'
+      : 'Deze link opent een alleen-lezen kopie. Wil je iets laten aanpassen of heb je een vraag? Antwoord gewoon op deze e-mail.'
+    : isSignature
+      ? 'This link opens a secure page where you can review the agreement and sign it electronically.'
+      : 'This link opens a read-only copy. To request changes or ask a question, just reply to this email.'
+
+  const fallbackLabel = isNL
+    ? 'Werkt de knop niet? Kopieer deze link naar je browser:'
+    : 'If the button does not work, copy this link into your browser:'
+
+  const expiryNote = isSignature && ctx.expiresAt
+    ? (() => {
+        const when = ctx.expiresAt!.toLocaleDateString(isNL ? 'nl-NL' : 'en-GB', {
+          day: '2-digit', month: 'long', year: 'numeric',
+        })
+        return isNL
+          ? `Deze link is geldig tot ${when}. Vraag me daarna om hem opnieuw te sturen.`
+          : `This link is valid until ${when}. After that, ask me to resend it.`
+      })()
+    : ''
+
+  /* Three things about the markup below, since none of it can carry a comment:
+     the wordmark and the domain are stacked rather than side by side, because two
+     cells in a 600px table collapse on a narrow screen and render as
+     "Engaging UX Designengaginguxdesign.com"; the button is #8b3a1e, not the #b5590a
+     it used to be, which is this product's warning colour and the wrong thing to
+     teach on the primary action of a legal document; and the sign-off is fixed rather
+     than left to the sender, so a closing is always present. */
   return `<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background:#f0e8de;font-family:Helvetica,Arial,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0e8de;padding:32px 0;">
+<html lang="${ctx.language}">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="x-apple-disable-message-reformatting">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+</head>
+<body style="margin:0;padding:0;background:#f0e4d8;font-family:Helvetica,Arial,sans-serif;">
+<div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;">
+  ${preheaderText}&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;
+</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0e4d8;padding:24px 0;">
 <tr><td align="center">
 
-<table width="600" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(28,16,8,0.08);">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(28,16,8,0.08);">
 
-<!-- Header -->
-<tr><td style="background:#3b2110;padding:28px 32px;">
-  <table width="100%" cellpadding="0" cellspacing="0" border="0">
-  <tr>
-    <td style="font-family:Helvetica,Arial,sans-serif;font-size:18px;font-weight:bold;color:#f7ede2;letter-spacing:0.02em;">Engaging UX Design</td>
-    <td align="right" style="font-family:Helvetica,Arial,sans-serif;font-size:12px;color:rgba(247,237,226,0.6);">engaginguxdesign.com</td>
-  </tr>
-  </table>
+<tr><td style="background:#3b2110;padding:28px 24px;">
+  <div style="font-family:Helvetica,Arial,sans-serif;font-size:19px;font-weight:bold;color:#f7ede2;letter-spacing:0.02em;">Engaging UX Design</div>
+  <div style="font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#d9c3af;padding-top:4px;">engaginguxdesign.com</div>
 </td></tr>
 
-${personalMessage ? `<!-- Personal message -->
-<tr><td style="padding:28px 32px 8px;">
-  <div style="font-family:Helvetica,Arial,sans-serif;font-size:14px;color:#3b2110;line-height:1.65;white-space:pre-line;">${escapeHtml(personalMessage)}</div>
+${personalMessage ? `<tr><td style="padding:28px 24px 4px;">
+  <div style="font-family:Helvetica,Arial,sans-serif;font-size:15px;color:#3b2110;line-height:1.7;white-space:pre-line;">${escapeHtml(personalMessage)}</div>
 </td></tr>` : ''}
 
-<!-- Contract summary -->
-<tr><td style="padding:16px 32px;">
-  <div style="background:#f7ede2;border-radius:8px;padding:20px 24px;border:1px solid rgba(59,33,16,0.1);">
+<tr><td style="padding:20px 24px 8px;">
+  <div style="background:#f7ede2;border-radius:8px;padding:20px;border:1px solid rgba(59,33,16,0.1);">
     ${summaryBody}
   </div>
 </td></tr>
 
-<!-- CTA -->
-<tr><td align="center" style="padding:8px 32px 24px;">
-  <a href="${viewUrl}" style="display:inline-block;background:#b5590a;color:#ffffff;font-family:Helvetica,Arial,sans-serif;font-size:14px;font-weight:bold;text-decoration:none;padding:14px 28px;border-radius:8px;">
-    ${escapeHtml(ctaLabel)} →
-  </a>
-  <div style="font-family:Helvetica,Arial,sans-serif;font-size:11px;color:#7a5a40;margin-top:10px;">
-    Or open in your browser:<br>
-    <a href="${viewUrl}" style="color:#b5590a;word-break:break-all;">${escapeHtml(viewUrl)}</a>
+<tr><td align="center" style="padding:12px 24px 8px;">
+  <div style="font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#7a5a40;line-height:1.6;padding-bottom:16px;">
+    ${ctaHelperText}
+  </div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:360px;">
+    <tr>
+      <td bgcolor="#8b3a1e" align="center" style="background:#8b3a1e;border-radius:8px;">
+        <a href="${safeUrl}" style="display:block;padding:15px 18px;font-family:Helvetica,Arial,sans-serif;font-size:16px;font-weight:bold;color:#ffffff;text-decoration:none;border-radius:8px;line-height:1.3;">${safeCta} &rarr;</a>
+      </td>
+    </tr>
+  </table>
+  <div style="font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#7a5a40;line-height:1.6;padding-top:18px;word-break:break-word;overflow-wrap:break-word;">
+    ${fallbackLabel}<br>
+    <a href="${safeUrl}" style="display:inline-block;max-width:100%;color:#8b3a1e;text-decoration:underline;font-family:'Courier New',Courier,monospace;word-break:break-word;overflow-wrap:break-word;">${breakableUrl(safeUrl)}</a>
+  </div>
+  ${expiryNote ? `<div style="font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#7a5a40;line-height:1.6;padding-top:10px;">${expiryNote}</div>` : ''}
+</td></tr>
+
+<tr><td style="padding:20px 24px 0;">
+  <div style="font-family:Helvetica,Arial,sans-serif;font-size:14px;color:#3b2110;line-height:1.6;">
+    ${isNL ? 'Met vriendelijke groet,' : 'Kind regards,'}<br>
+    <strong>Cess Garcia - de Laat</strong><br>
+    Engaging UX Design
   </div>
 </td></tr>
 
-<!-- Footer -->
-<tr><td style="padding:20px 32px;border-top:1px solid rgba(59,33,16,0.1);">
-  <div style="font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#7a5a40;line-height:1.6;">
-    <strong style="color:#3b2110;">Engaging UX Design</strong><br>
-    engaginguxdesign.com · info@engaginguxdesign.com · +31 6 12 92 23 16
+<tr><td style="padding:24px 24px 28px;border-top:1px solid rgba(59,33,16,0.14);">
+  <div style="font-family:Helvetica,Arial,sans-serif;font-size:12px;font-weight:bold;color:#1c1008;padding-bottom:6px;">Engaging UX Design</div>
+  <div style="font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:2;">
+    <a href="https://engaginguxdesign.com" style="color:#7a5a40;text-decoration:underline;">engaginguxdesign.com</a><br>
+    <a href="mailto:info@engaginguxdesign.com" style="color:#7a5a40;text-decoration:underline;">info@engaginguxdesign.com</a><br>
+    <a href="tel:+31612922316" style="color:#7a5a40;text-decoration:underline;">+31 6 12 92 23 16</a>
   </div>
 </td></tr>
 
@@ -460,6 +584,7 @@ ${personalMessage ? `<!-- Personal message -->
 </table>
 </body></html>`
 }
+
 
 /* ────────────────────────────────────────────────────────────────────────────
    Admin login code

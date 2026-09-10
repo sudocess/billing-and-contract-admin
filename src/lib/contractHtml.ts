@@ -357,6 +357,83 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
       </div>`
   }
 
+  /* ── What the add-ons actually cost ───────────────────────────────────
+     Nothing in this app ever added them up. The contract stated a project value,
+     listed the add-ons in section 6 with their own prices, and left the client to
+     work out the real number, which is the kind of gap that gets argued about after
+     the fact rather than before.
+
+     They are not summed into one figure, because they are not one kind of thing. A
+     one-off setup fee, an annual hosting charge and a pass-through billed at cost
+     cannot be added together honestly, and a single total that mixed them would
+     understate a recurring cost or overstate a one-off one. So each kind is stated
+     as what it is, and only the genuinely one-off column is added to the project
+     value. */
+  const addonMoney = (() => {
+    const oneOff: { label: string; amount: number }[] = []
+    const recurring: { label: string; text: string }[] = []
+    const atCost: string[] = []
+
+    if (data.hosting.mode === 'both' && data.hosting.domainPrice > 0) {
+      oneOff.push({ label: 'Domain &amp; hosting setup', amount: data.hosting.domainPrice })
+    }
+    if (data.hosting.mode !== 'none' && data.hosting.hostingPrice > 0) {
+      recurring.push({
+        label: 'Managed hosting',
+        text: `${fmt(data.hosting.hostingPrice)} per year, renewing until cancelled`,
+      })
+    }
+    if (data.addons.seo.on && data.addons.seo.price > 0) {
+      oneOff.push({ label: 'Foundational SEO setup', amount: data.addons.seo.price })
+    }
+    if (data.addons.logo.on && data.addons.logo.price > 0) {
+      oneOff.push({ label: 'Logo design', amount: data.addons.logo.price })
+    }
+    if (data.addons.support.on && data.addons.support.price > 0) {
+      const months = data.addons.support.months || 0
+      recurring.push({
+        label: 'Priority support',
+        text: `${fmt(data.addons.support.price)} per month for ${months} ${months === 1 ? 'month' : 'months'}, ${fmt(data.addons.support.price * months)} in total`,
+      })
+    }
+    if (data.addons.supabase.on) atCost.push('Supabase')
+    if (data.addons.vercel.on) atCost.push('Vercel')
+
+    const oneOffTotal = oneOff.reduce((a, r) => a + r.amount, 0)
+    return {
+      oneOff, recurring, atCost, oneOffTotal,
+      any: oneOff.length > 0 || recurring.length > 0 || atCost.length > 0,
+    }
+  })()
+
+  /** The cost summary printed under section 2, on project contracts only. */
+  const glanceTotals =
+    docKind !== 'project' || !addonMoney.any
+      ? ''
+      : `
+      <table class="payment-table" style="margin-top:10px;">
+        <tbody>
+          <tr><td>Project value, paid on the schedule in section 4</td><td class="amount">${fmt(data.pricing.total)}</td></tr>
+          ${addonMoney.oneOff.map(r => `<tr><td>${r.label}, invoiced separately</td><td class="amount">${fmt(r.amount)}</td></tr>`).join('')}
+          ${addonMoney.oneOffTotal > 0
+            ? `<tr><td>Total one-off cost (excl. VAT)</td><td class="amount total">${fmt(data.pricing.total + addonMoney.oneOffTotal)}</td></tr>`
+            : ''}
+        </tbody>
+      </table>
+      ${addonMoney.recurring.length > 0
+        ? `<div class="note"><strong>Recurring, invoiced separately.</strong> ${addonMoney.recurring.map(r => `${r.label}: ${r.text}`).join('. ')}. ${addonMoney.recurring.length === 1 ? 'This is not' : 'These are not'} included in the totals above.</div>`
+        : ''}
+      ${addonMoney.atCost.length > 0
+        ? `<div class="note"><strong>Billed at cost, invoiced separately.</strong> ${addonMoney.atCost.join(' and ')}. These are passed through with no mark-up and have no fixed amount, so they cannot be totalled in advance. Section 6 sets out what each covers.</div>`
+        : ''}
+      <div class="note accent"><strong>Add-ons are billed separately.</strong> Everything listed in section 6 is invoiced on its own and forms no part of the payment schedule in section 4. The schedule covers the project value of ${fmt(data.pricing.total)} and nothing else.</div>`
+
+  /** The same rule, restated where the schedule itself is printed. */
+  const addonExclusionNote =
+    docKind === 'project' && addonMoney.any
+      ? ' The add-ons in section 6 are invoiced separately and form no part of this schedule.'
+      : ''
+
   // ── Section 6: hosting + add-ons ─────────────────────────────────────
   const addonRows: string[] = []
   if (data.hosting.mode === 'both') {
@@ -395,6 +472,10 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
      statements about the same arrangement, and the moment they differ by a word the
      later one looks like it changed the earlier one. So an extension points at the
      agreement that actually governs it. */
+  const separateBillingLine =
+    docKind === 'project'
+      ? ' Everything in this section is invoiced separately and forms no part of the payment schedule in section 4.'
+      : ''
   const addonsNote = data.addons.support.on
     ? 'Priority support is a fixed monthly commitment. The client may cancel with written notice at least <strong>one full calendar month in advance</strong>. A pro-rated refund applies for any unused pre-paid portion. Data storage and app hosting costs are billed at cost and invoiced separately.'
     : 'Data storage and app hosting costs (Supabase, Vercel, etc.) are billed at cost and invoiced separately.'
@@ -423,7 +504,7 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
           ${addonRows.join('\n          ')}
         </tbody>
       </table>
-      <div class="note">${addonsNote}</div>`
+      <div class="note">${addonsNote}${separateBillingLine}</div>`
 
   // ── Section 7: Google account ────────────────────────────────────────
 
@@ -559,7 +640,7 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
         </tbody>
       </table>
       <div class="note">
-        Invoices are payable within 30 days of invoice date. Late payments are subject to contractually agreed interest of 1% per month, in addition to any statutory commercial interest due under art. 6:119a BW and a &euro;25 administrative fee per reminder issued after the first. Where an invoice is overdue, delivery or release of outstanding deliverables is paused until payment is received.${paymentNote ? ' ' + paymentNote : ''}
+        Invoices are payable within 30 days of invoice date. Late payments are subject to contractually agreed interest of 1% per month, in addition to any statutory commercial interest due under art. 6:119a BW and a &euro;25 administrative fee per reminder issued after the first. Where an invoice is overdue, delivery or release of outstanding deliverables is paused until payment is received.${paymentNote ? ' ' + paymentNote : ''}${addonExclusionNote}
       </div>`
 
   /* What this extension does not cover.
@@ -881,7 +962,7 @@ ${includePrintScript ? '<button class="toolbar" onclick="window.print()">Save as
     <div class="section">
       <div class="section-label">${glanceLabel}</div>
       <div class="details-row">${glanceCells}
-      </div>
+      </div>${glanceTotals}
     </div>
 
     <div class="section">
