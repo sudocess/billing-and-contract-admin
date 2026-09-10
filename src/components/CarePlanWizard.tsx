@@ -79,6 +79,14 @@ export default function CarePlanWizard() {
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [ownerReg, setOwnerReg] = useState<{ kvk: string; vat: string }>({ kvk: '', vat: '' })
+
+  useEffect(() => {
+    fetch('/api/settings/owner', { cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(o => { if (o) setOwnerReg({ kvk: o.ownKvk || '', vat: o.ownVat || '' }) })
+      .catch(() => {/* prints no registration line, which is the correct default */})
+  }, [])
 
   useEffect(() => {
     fetch('/api/clients', { cache: 'no-store' })
@@ -173,7 +181,41 @@ export default function CarePlanWizard() {
             dedicatedEmail: picked.dedicatedEmail ?? '',
           },
           pricing: { total: fee, initFee: 0, p1: 0, p2: 0, p3: 0, tier2Rate: rateNum },
-          data: { carePlan, kind: 'care_plan' },
+          // A full PreviewData snapshot, because that is what the contract renders
+          // from — a partial object here would fail on the first field it lacks.
+          data: {
+            contractId: code,
+            contractType: 'care',
+            plan: 'custom',
+            phase: 'custom',
+            phaseLabel: 'Care plan — monthly support',
+            projectName: 'Care plan',
+            deliverables: notes.trim() || `Monthly support: ${hoursNum} hours included at €${rateNum}/hr.`,
+            phaseStart: startDate,
+            phaseEnd: '',
+            client: {
+              name: picked.name, company: picked.company ?? '', email: picked.email,
+              phone: picked.phone ?? '', kvk: picked.kvk ?? '', vat: picked.vat ?? '',
+              address: picked.address ?? '', postalCode: picked.postalCode ?? '',
+              city: picked.city ?? '', country: picked.country ?? 'Netherlands',
+              dedicatedEmail: picked.dedicatedEmail ?? '',
+            },
+            pricing: { total: fee, initFee: 0, p1: 0, p2: 0, p3: 0, tier2Rate: rateNum },
+            owner: ownerReg,
+            hosting: {
+              mode: includesInfra ? 'hosting' : 'none',
+              domainPrice: 0, hostingPrice: 0, clientHostingNote: '',
+            },
+            addons: {
+              seo: { on: false, price: 0 },
+              logo: { on: false, price: 0, note: '' },
+              support: { on: false, price: 0, months: 0 },
+              supabase: { on: false, price: 0 },
+              vercel: { on: false, price: 0 },
+            },
+            schedule: null,
+            carePlan,
+          },
           schedule: null,
         }),
       })

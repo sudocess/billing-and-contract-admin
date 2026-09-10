@@ -27,6 +27,21 @@ export type PreviewData = {
   /** Variable-length payment schedule. When present it replaces the p1/p2/p3 table. */
   schedule?: PaymentSchedule | null
   /**
+   * Present only on care-plan agreements. A care plan has no milestones and no fixed
+   * total, so sections 2, 4 and 5 are rendered from this instead of from the phase
+   * split — which would otherwise print three €0.00 milestone rows under a monthly fee.
+   */
+  carePlan?: {
+    includedHours: number
+    hourlyRate: number
+    monthlyFee: number
+    effectiveRate: number
+    startDate: string
+    noticeDays: number
+    includesInfrastructure: boolean
+    notes: string
+  } | null
+  /**
    * Registration numbers as they stood when this contract was written, captured into
    * the snapshot rather than read live. A contract must state what was true at the
    * moment it was signed — re-rendering last year's agreement should not retroactively
@@ -388,6 +403,124 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
 
   const clientName = c.name || '[Client name]'
 
+  /* ── Which kind of agreement is this? ──────────────────────────────────────
+     Three documents share one shell. Only sections 2, 4 and 5 differ: what the
+     agreement is at a glance, how it is paid for, and what it includes. Everything
+     else — parties, infrastructure, obligations, IP, the legal tail — is common,
+     and stays common so a clause fixed once is fixed everywhere. */
+  const care = data.carePlan ?? null
+  // An extension's parent is in its own code (…-0001-EXT1), so nothing extra is
+  // needed to state what it extends even on a contract saved before this existed.
+  const extMatch = /^(.*)-EXT(\d+)$/.exec(data.contractId || '')
+  const docKind: 'care' | 'extension' | 'project' =
+    care ? 'care' : extMatch ? 'extension' : 'project'
+
+  const docTitle =
+    docKind === 'care' ? 'Care Plan Agreement'
+      : docKind === 'extension' ? 'Scope Extension'
+      : 'Service Agreement'
+
+  const glanceLabel =
+    docKind === 'care' ? '2. Plan at a Glance'
+      : docKind === 'extension' ? '2. Extension at a Glance'
+      : '2. Project at a Glance'
+
+  const glanceCells =
+    docKind === 'care' && care
+      ? `
+        <div class="detail-cell">
+          <div class="detail-cell-label">Monthly fee</div>
+          <div class="detail-cell-value accent">${fmt(care.monthlyFee)} <span style="font-size:9.5px;font-weight:400;color:#9a7a65;">per month, excl. VAT</span></div>
+        </div>
+        <div class="detail-cell">
+          <div class="detail-cell-label">Included hours</div>
+          <div class="detail-cell-value">${care.includedHours} hours per month</div>
+        </div>
+        <div class="detail-cell">
+          <div class="detail-cell-label">Starts</div>
+          <div class="detail-cell-value">${esc(fmtLong(care.startDate))}</div>
+        </div>`
+      : docKind === 'extension'
+        ? `
+        <div class="detail-cell">
+          <div class="detail-cell-label">Extends</div>
+          <div class="detail-cell-value">${esc(extMatch ? extMatch[1] : '')}</div>
+        </div>
+        <div class="detail-cell">
+          <div class="detail-cell-label">Agreed completion</div>
+          <div class="detail-cell-value">${esc(completionDate)}</div>
+        </div>
+        <div class="detail-cell">
+          <div class="detail-cell-label">Value of this extension</div>
+          <div class="detail-cell-value accent">${fmt(data.pricing.total)} <span style="font-size:9.5px;font-weight:400;color:#9a7a65;">excl. VAT</span></div>
+        </div>`
+        : `
+        <div class="detail-cell">
+          <div class="detail-cell-label">Phase</div>
+          <div class="detail-cell-value">${esc(data.phaseLabel)}</div>
+        </div>
+        <div class="detail-cell">
+          <div class="detail-cell-label">Estimated completion</div>
+          <div class="detail-cell-value">${esc(completionDate)}</div>
+        </div>
+        <div class="detail-cell">
+          <div class="detail-cell-label">Total project value</div>
+          <div class="detail-cell-value accent">${fmt(data.pricing.total)} <span style="font-size:9.5px;font-weight:400;color:#9a7a65;">excl. VAT</span></div>
+        </div>`
+
+  const paymentLabel = docKind === 'care' ? '4. Fees &amp; Billing' : '4. Payment Schedule'
+
+  const paymentBlock =
+    docKind === 'care' && care
+      ? `
+      <table class="payment-table">
+        <thead>
+          <tr><th>Item</th><th>Basis</th><th style="text-align:right;">Amount</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Monthly fee</td><td>Billed monthly in advance</td><td class="amount">${fmt(care.monthlyFee)}</td></tr>
+          <tr><td>Included hours</td><td>${care.includedHours} hours each month, within the fee</td><td class="amount">included</td></tr>
+          <tr><td>Additional hours</td><td>Agreed in writing in advance, billed in arrears</td><td class="amount">${fmt(care.hourlyRate)}/hr</td></tr>
+        </tbody>
+      </table>
+      <div class="note">
+        The fee is payable monthly in advance. Included hours are a reservation of capacity: they have no cash value, are not refundable or exchangeable, and unused hours do not carry beyond the following month. Hours beyond the included allowance are agreed in writing before the work starts and are billed in arrears at the rate above. Where an invoice is overdue, delivery or release of outstanding work is paused until payment is received; the website, business email, the domain name and access to the administration application are not suspended, withheld or allowed to lapse for non-payment. Either party may end this agreement with ${care.noticeDays} days&rsquo; written notice.
+      </div>`
+      : `
+      <table class="payment-table">
+        <thead>
+          <tr><th>Milestone</th><th>Condition</th><th style="text-align:right;">Amount</th></tr>
+        </thead>
+        <tbody>
+          ${paymentRows}
+          <tr><td colspan="2">Total (excl. VAT)</td><td class="amount total">${fmt(data.pricing.total)}</td></tr>
+        </tbody>
+      </table>
+      <div class="note">
+        Invoices are payable within 30 days of invoice date. Late payments are subject to contractually agreed interest of 1% per month, in addition to any statutory commercial interest due under art. 6:119a BW and a &euro;25 administrative fee per reminder issued after the first. Where an invoice is overdue, delivery or release of outstanding deliverables is paused until payment is received.${paymentNote ? ' ' + paymentNote : ''}
+      </div>`
+
+  const scopeNote =
+    docKind === 'extension'
+      ? `<div class="note accent" style="margin-top:10px;">This is additional work, outside the scope of ${esc(extMatch ? extMatch[1] : 'the original agreement')}. That agreement remains in force unchanged; this document adds to it and is priced and signed separately.</div>`
+      : docKind === 'care' && care?.includesInfrastructure
+        ? `<div class="note accent" style="margin-top:10px;">Hosting, the database, domain registration and business email are included in the monthly fee and are not invoiced separately.</div>`
+        : ''
+
+  const section5 =
+    docKind === 'care' && care
+      ? `
+    <div class="section">
+      <div class="section-label">5. What the Included Hours Cover</div>
+      <p class="clause">The included hours cover technical and design work on the delivered systems: content updates, refinements to existing pages and features, maintenance, monitoring, and support. They do not cover new applications, integrations or third-party services, a visual redesign or rebrand, migration to a different platform, or any single piece of work reasonably estimated at more than ${Math.max(1, Math.round(care.includedHours * 2))} hours. Work of that nature is quoted and agreed as a separate scope extension.</p>
+      <p class="clause">Time is logged and reported monthly. The rate for additional hours is ${fmt(care.hourlyRate)} per hour.</p>
+    </div>`
+      : `
+    <div class="section">
+      <div class="section-label">5. Revision Scope</div>
+      ${revisionTiers}
+    </div>`
+
   const printScript = includePrintScript
     ? `<script>window.addEventListener('load', function() { setTimeout(window.print, 300); });</script>`
     : ''
@@ -397,7 +530,7 @@ export function generateContractHtml(data: PreviewData, opts: GenerateHtmlOption
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Service Agreement — Engaging UX Design — ${esc(data.contractId)}</title>
+<title>${docTitle} — Engaging UX Design — ${esc(data.contractId)}</title>
 <link href="https://fonts.googleapis.com/css2?family=Gabarito:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -611,43 +744,20 @@ ${includePrintScript ? '<button class="toolbar" onclick="window.print()">Save as
     </div>
 
     <div class="section">
-      <div class="section-label">2. Project at a Glance</div>
-      <div class="details-row">
-        <div class="detail-cell">
-          <div class="detail-cell-label">Phase</div>
-          <div class="detail-cell-value">${esc(data.phaseLabel)}</div>
-        </div>
-        <div class="detail-cell">
-          <div class="detail-cell-label">Estimated completion</div>
-          <div class="detail-cell-value">${esc(completionDate)}</div>
-        </div>
-        <div class="detail-cell">
-          <div class="detail-cell-label">Total project value</div>
-          <div class="detail-cell-value accent">${fmt(data.pricing.total)} <span style="font-size:9.5px;font-weight:400;color:#9a7a65;">excl. VAT</span></div>
-        </div>
+      <div class="section-label">${glanceLabel}</div>
+      <div class="details-row">${glanceCells}
       </div>
     </div>
 
     <div class="section">
       <div class="section-label">3. Scope of Work</div>
       ${renderDeliverables(data.deliverables)}
-      ${phaseNote ? `<div class="note" style="margin-top:10px;">${phaseNote}</div>` : ''}
+      ${docKind === 'project' && phaseNote ? `<div class="note" style="margin-top:10px;">${phaseNote}</div>` : ''}
+      ${scopeNote}
     </div>
 
     <div class="section">
-      <div class="section-label">4. Payment Schedule</div>
-      <table class="payment-table">
-        <thead>
-          <tr><th>Milestone</th><th>Condition</th><th style="text-align:right;">Amount</th></tr>
-        </thead>
-        <tbody>
-          ${paymentRows}
-          <tr><td colspan="2">Total (excl. VAT)</td><td class="amount total">${fmt(data.pricing.total)}</td></tr>
-        </tbody>
-      </table>
-      <div class="note">
-        Invoices are payable within 30 days of invoice date. Late payments are subject to contractually agreed interest of 1% per month, in addition to any statutory commercial interest due under art. 6:119a BW and a €25 administrative fee per reminder issued after the first. Engaging UX Design reserves the right to suspend work where payment is overdue by more than 14 days.${paymentNote ? ' ' + paymentNote : ''}
-      </div>
+      <div class="section-label">${paymentLabel}</div>${paymentBlock}
     </div>
 
   </div>
@@ -660,16 +770,13 @@ ${includePrintScript ? '<button class="toolbar" onclick="window.print()">Save as
 <!-- ═══════════ PAGE 2 ═══════════ -->
 <div class="page">
   <div class="page-header-cont">
-    <div class="phc-brand">Engaging UX Design — Service Agreement</div>
+    <div class="phc-brand">Engaging UX Design — ${docTitle}</div>
     <div class="phc-id">${esc(data.contractId)}</div>
   </div>
 
   <div class="page-body">
 
-    <div class="section">
-      <div class="section-label">5. Revision Scope</div>
-      ${revisionTiers}
-    </div>
+${section5}
 
     <div class="section">
       <div class="section-label">6. Hosting &amp; Add-ons</div>
@@ -727,7 +834,7 @@ ${includePrintScript ? '<button class="toolbar" onclick="window.print()">Save as
 <!-- ═══════════ PAGE 3 ═══════════ -->
 <div class="page">
   <div class="page-header-cont">
-    <div class="phc-brand">Engaging UX Design — Service Agreement</div>
+    <div class="phc-brand">Engaging UX Design — ${docTitle}</div>
     <div class="phc-id">${esc(data.contractId)}</div>
   </div>
 
@@ -781,7 +888,7 @@ ${includePrintScript ? '<button class="toolbar" onclick="window.print()">Save as
 
 <div class="page">
   <div class="page-header-cont">
-    <div class="phc-brand">Engaging UX Design — Service Agreement</div>
+    <div class="phc-brand">Engaging UX Design — ${docTitle}</div>
     <div class="phc-id">${esc(data.contractId)}</div>
   </div>
 
@@ -813,7 +920,7 @@ ${includePrintScript ? '<button class="toolbar" onclick="window.print()">Save as
 
 <div class="page">
   <div class="page-header-cont">
-    <div class="phc-brand">Engaging UX Design — Service Agreement</div>
+    <div class="phc-brand">Engaging UX Design — ${docTitle}</div>
     <div class="phc-id">${esc(data.contractId)}</div>
   </div>
 
