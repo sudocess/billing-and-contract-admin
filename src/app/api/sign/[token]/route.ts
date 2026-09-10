@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import fs from 'fs'
 import path from 'path'
 import { createHash, randomUUID } from 'crypto'
@@ -169,74 +169,92 @@ export async function POST(
     }
   }
 
-  /* The client's own copy of what they just signed, PDF attached.
-     Non-blocking, because a signature must not fail because a mail server did, but
-     every outcome is written to the contract's trail. The silent case was the worst
-     of the three: a contract with no email address on it sent nothing at all and
-     said nothing about it, so the client simply never received their copy and the
-     record showed no reason why. */
-  const clientEmail = (contract.dedicatedEmail || contract.clientEmail || '').trim()
-  if (clientEmail) {
-    sendSignedConfirmationToClient({
-      to: clientEmail,
-      clientName: contract.clientName,
-      contractCode: contract.contractCode,
-      projectName: contract.projectName,
-      signedAt,
-      // Absent only where the render failed above. The email still goes, confirming
-      // the signature, rather than being withheld because an attachment is missing.
-      pdfBuffer,
-    })
-      .then(() =>
-        recordEvent(contract.id, 'signed',
-          `Signed copy emailed to ${clientEmail}`, 'system'),
-      )
-      .catch(err => {
+  /* Deferred with after(), not fired and forgotten.
+     
+     These were floating promises followed by an immediate response. On a serverless
+     platform the function can be frozen the moment the response is flushed, so the
+     work after it is not guaranteed to run, and on the first contract ever signed
+     through this system it did not: the signature and the PDF were stored, and
+     neither email nor its trail entry ever appeared. after() keeps the invocation
+  /* Deferred with after(), not fired and forgotten.
+
+     These were floating promises followed by an immediate response. On a serverless
+     platform the invocation can be frozen the moment the response is flushed, so work
+     started after it is not guaranteed to run, and on the first contract ever signed
+     through this system it did not: the signature and the PDF were stored, and neither
+     email nor its trail entry ever appeared. after() keeps the invocation alive until
+     this finishes, while the client still gets their confirmation immediately.
+
+     Awaited inside, so a mail failure cannot fail the signature, which is already
+     recorded and already returned, and every outcome reaches the trail. */
+  after(async () => {
+    const clientEmail = (contract.dedicatedEmail || contract.clientEmail || '').trim()
+
+    // The client's own copy of what they just signed, PDF attached.
+    if (clientEmail) {
+      try {
+        await sendSignedConfirmationToClient({
+          to: clientEmail,
+          clientName: contract.clientName,
+          contractCode: contract.contractCode,
+          projectName: contract.projectName,
+          signedAt,
+          // Absent only where the render failed above. The email still goes, so the
+          // client is told their signature landed rather than hearing nothing at all.
+          pdfBuffer,
+        })
+        await recordEvent(contract.id, 'signed', `Signed copy emailed to ${clientEmail}`, 'system')
+      } catch (err) {
         console.error('[sign] client confirmation email failed', err)
-        return recordEvent(contract.id, 'signed',
+        await recordEvent(contract.id, 'signed',
           `Signed copy could NOT be emailed to ${clientEmail}: ${err instanceof Error ? err.message : 'unknown mail error'}`,
           'system')
+      }
+    } else {
+      // The silent case, and the worst of the three: nothing was sent and nothing
+      // said why, so the client simply never received their copy.
+      await recordEvent(contract.id, 'signed',
+        'No email address on this contract, so the client was not sent their signed copy',
+        'system')
+    }
+
+    // And the owner, at the address they actually read.
+    const notifyTo = await prisma.ownerSettings
+      .findUnique({ where: { id: 'singleton' }, select: { notifyEmail: true } })
+      .then(s => (s?.notifyEmail || '').trim())
+      .catch(() => '')
+
+    const origin = requestOrigin(req)
+
+    try {
+      await sendSignedNotificationToAdmin({
+        contractCode: contract.contractCode,
+        clientName: contract.clientName,
+        clientEmail,
+        signedAt,
+        signerIp: ip,
+        pdfBuffer,
+        to: notifyTo,
+        contractUrl: origin
+          ? `${origin}/contracts/${encodeURIComponent(contract.contractCode)}`
+          : undefined,
       })
-  } else {
-    await recordEvent(contract.id, 'signed',
-      'No email address on this contract, so the client was not sent their signed copy',
-      'system')
-  }
-
-  /* Tell the owner, at the address they actually read.
-     Still non-blocking, because a signature must never fail because a notification
-     did. But a failure is now written to the contract's own trail rather than only
-     to a server log nobody opens, so "did I get told about this" has an answer on
-     the contract page. */
-  const notifyTo = await prisma.ownerSettings
-    .findUnique({ where: { id: 'singleton' }, select: { notifyEmail: true } })
-    .then(s => (s?.notifyEmail || '').trim())
-    .catch(() => '')
-
-  const origin = requestOrigin(req)
-
-  sendSignedNotificationToAdmin({
-    contractCode: contract.contractCode,
-    clientName: contract.clientName,
-    clientEmail,
-    signedAt,
-    signerIp: ip,
-    pdfBuffer,
-    to: notifyTo,
-    contractUrl: origin
-      ? `${origin}/contracts/${encodeURIComponent(contract.contractCode)}`
-      : undefined,
-  })
-    .then(() =>
-      recordEvent(contract.id, 'signed',
-        `Signing notification emailed to ${notifyTo || 'the sending mailbox'}`, 'system'),
-    )
-    .catch(err => {
+      await recordEvent(contract.id, 'signed',
+        `Signing notification emailed to ${notifyTo || 'the sending mailbox'}`, 'system')
+    } catch (err) {
       console.error('[sign] admin notification email failed', err)
-      return recordEvent(contract.id, 'signed',
+      await recordEvent(contract.id, 'signed',
         `Signing notification could NOT be emailed: ${err instanceof Error ? err.message : 'unknown mail error'}`,
         'system')
-    })
+    }
+  })
 
-  return NextResponse.json({ ok: true })
+  // The reference is handed back so the client can be shown it, and quote it, without
+  // waiting for the email to arrive.
+  return NextResponse.json({
+    ok: true,
+    signingReference,
+    contractCode: contract.contractCode,
+    signedAt: signedAt.toISOString(),
+  })
 }

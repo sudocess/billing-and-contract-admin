@@ -119,7 +119,7 @@ export default async function SignPage({
         <ContractIframe html={html} />
 
         {/* Signing form */}
-        <SigningForm token={token} clientName={contract.clientName} />
+        <SigningForm token={token} clientName={contract.clientName} contractCode={contract.contractCode} />
 
         <p className="text-center text-xs text-[#b8a090] mt-8 pb-8">
           Engaging UX Design · engaginguxdesign.com · info@engaginguxdesign.com
